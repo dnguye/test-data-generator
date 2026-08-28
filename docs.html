@@ -16,6 +16,7 @@
   --display:'Archivo',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+html{font-size:125%}
 body{font-family:var(--body);color:var(--ink);background:var(--paper);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:28px 28px;background-position:-1px -1px;min-height:100vh}
@@ -53,6 +54,18 @@ td:first-child{white-space:nowrap;font-weight:600}
 .kv{color:var(--ok)}
 .cm{color:var(--muted)}
 kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+@media(max-width:640px){
+  main{padding:14px 10px 60px}
+  .card{padding:16px 13px;margin-bottom:12px;border-radius:9px}
+  header{padding:10px 12px}
+  /* tables become their own horizontal scrollers instead of stretching the page */
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+  pre{font-size:.68rem;padding:10px 11px}
+  .h3row{flex-wrap:wrap}
+  .h3row button{padding:8px 14px}
+  .spec-scroll{max-height:60vh}
+  .toc a{padding:7px 13px}
+}
 .h3row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 8px}
 .spec-scroll{max-height:480px}
 .h3row h3{margin:0}
