@@ -182,6 +182,10 @@ name      [ exact copy in variants ]</code></pre>
     <li><b>Row Number</b> renumbers sequentially over the final (shuffled) output.</li>
     <li><b>Reference, Boolean and Static Value</b> fields are copied unchanged — a duplicate Contact still points at
     the same Account.</li>
+    <li><b>Formula (JS) fields are not re-evaluated on variants.</b> A variant is a corrupted copy of a
+    <em>finished</em> record: all field rules run once when the base record generates, and from there only the dups
+    settings decide the corruption. A derived field (like a name-based email) keeps the value computed from the
+    original spelling — which mirrors real duplicate data, where the old email survives the misspelled re-entry.</li>
   </ul>
   <p class="dim">The row count is the number of <em>base</em> records; the output file is larger by the variants.
   With a seed set, the entire messy dataset — including which records got duplicates and how they were fuzzed —
