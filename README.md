@@ -4,6 +4,10 @@ A zero-dependency, browser-based test data generator. Define a schema (or import
 
 Everything runs client-side. No server, no build step, no accounts, and no data leaves the browser.
 
+## Tests
+
+`node tests/audit.mjs` runs a 41-check engine audit (no dependencies) against the code extracted from `index.html`: schema edge cases, escaping, formula failures, reference guardrails, duplicate/targeted-similarity behavior, reproducibility, and a 10k-row performance guard.
+
 ## Deploy on GitHub Pages
 
 1. Create a repo and push these files (`index.html`, `docs.html`, `faker.iife.js`, `README.md`).

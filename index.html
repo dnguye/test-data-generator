@@ -334,10 +334,15 @@ const TYPES = {
   "UUID":           {gen:()=>uuid()},
   "Boolean":        {gen:()=>rnd()<0.5},
   "Number":         {opts:{min:"1",max:"100",decimals:"0"},
-                     gen:(o)=>{const min=parseFloat(o.min||0),max=parseFloat(o.max||100),d=parseInt(o.decimals||0);
+                     gen:(o)=>{let min=parseFloat(o.min),max=parseFloat(o.max);
+                       if(!Number.isFinite(min))min=1; if(!Number.isFinite(max))max=100;
+                       if(max<min)[min,max]=[max,min];
+                       const d=Math.min(Math.max(parseInt(o.decimals)||0,0),8);
                        const v=min+rnd()*(max-min);return d>0?parseFloat(v.toFixed(d)):Math.round(v);}},
   "Date":           {opts:{from:"2024-01-01",to:"2026-08-27",dateFormat:"YYYY-MM-DD"},
-                     gen:(o)=>{const a=Date.parse(o.from||"2024-01-01"),b=Date.parse(o.to||Date.now());
+                     gen:(o)=>{let a=Date.parse(o.from||"2024-01-01"),b=Date.parse(o.to||Date.now());
+                       if(isNaN(a)&&isNaN(b))return "";
+                       if(isNaN(a))a=b; if(isNaN(b))b=a;
                        const d=new Date(a+rnd()*(Math.max(b,a)-a));
                        const p=n=>String(n).padStart(2,"0");
                        const map={YYYY:d.getFullYear(),MM:p(d.getMonth()+1),DD:p(d.getDate()),HH:p(d.getHours()),mm:p(d.getMinutes()),ss:p(d.getSeconds())};
@@ -392,7 +397,11 @@ function parseName(name){
   const segs = name.split(".").map(raw=>{
     let key=raw, repeat=null, attr=false;
     const m = key.match(/\[(\d+)(?:-(\d+))?\]$/);
-    if(m){repeat={min:parseInt(m[1]),max:m[2]?parseInt(m[2]):parseInt(m[1])};key=key.slice(0,m.index);}
+    if(m){
+      let lo=parseInt(m[1]), hi=m[2]?parseInt(m[2]):parseInt(m[1]);
+      if(hi<lo)[lo,hi]=[hi,lo];
+      repeat={min:lo,max:hi};key=key.slice(0,m.index);
+    }
     if(key.startsWith("@")){attr=true;key=key.slice(1);}
     return {key,repeat,attr};
   });
@@ -596,13 +605,31 @@ function editOnce(s){
    target; on overshoot restart from the original; return the closest found.
    Similarity is quantized (short strings take coarse steps), so this is
    best-effort — the preview reports what was actually achieved. */
+function bigEdit(s){
+  s=String(s);
+  const words=s.split(" ").filter(Boolean);
+  if(words.length>1&&randint(0,1)){          // move a word: wrecks prefixes and order
+    const i=randint(0,words.length-1);
+    const [w]=words.splice(i,1);
+    words.splice(randint(0,words.length),0,w);
+    const r=words.join(" ");
+    if(r!==s) return r;
+  }
+  if(s.length>4){                            // drop a small chunk
+    const n=randint(2,Math.min(4,s.length-2));
+    const i=randint(0,s.length-n);
+    return s.slice(0,i)+s.slice(i+n);
+  }
+  return editOnce(s);
+}
 function corruptToTarget(s0,algo,target){
   s0=String(s0);
   const sim=SIM_FNS[algo]||jaroWinkler, tol=0.02;
   if(!s0.length||target>=0.995) return s0;
   let cur=s0, best=s0, bestGap=1-target;
-  for(let it=0;it<80;it++){
-    const cand=editOnce(cur);
+  const iters=target<0.75?220:80;
+  for(let it=0;it<iters;it++){
+    const cand=(target<0.85&&rnd()<0.25)?bigEdit(cur):editOnce(cur);
     const cs=sim(s0,cand);
     if(cs>=target-tol&&cs<=target+tol) return cand;
     const gap=Math.abs(cs-target);
@@ -688,8 +715,12 @@ function damageRow(en,flat,lvl){
       if(!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid") continue;
       const t=Math.min(Math.max(parseFloat(f.sim.target)||0.9,0.5),1);
       const v=c[f.name];
-      if(Array.isArray(v)) c[f.name]=v.map(x=>x===null||x===undefined||x===""?x:corruptToTarget(x,f.sim.algo,t));
-      else if(v!==undefined&&v!==null&&v!=="") c[f.name]=corruptToTarget(v,f.sim.algo,t);
+      const cor=x=>{
+        const r=corruptToTarget(x,f.sim.algo,t);
+        return (typeof x==="number"&&r!==""&&!isNaN(Number(r)))?Number(r):r;
+      };
+      if(Array.isArray(v)) c[f.name]=v.map(x=>x===null||x===undefined||x===""?x:cor(x));
+      else if(v!==undefined&&v!==null&&v!=="") c[f.name]=cor(v);
     }
     return c;
   }
@@ -715,19 +746,21 @@ function applyDuplicates(en,rows){
   const lvl=en.dupLevel;
   const pct=Math.min(Math.max(parseInt(en.dupPct)||20,1),100);
   const maxV=Math.min(Math.max(parseInt(en.dupMax)||2,1),5);
-  const mseg={f:{name:"match_id",type:"Static Value",opts:{}},
-              segs:[{key:"match_id",repeat:null,attr:false}], rp:null};
+  let mkey="match_id";
+  while(en.fields.some(f=>f.name.trim()===mkey)) mkey="_"+mkey;
+  const mseg={f:{name:mkey,type:"Static Value",opts:{}},
+              segs:[{key:mkey,repeat:null,attr:false}], rp:null};
   const parsed=[mseg,...rows[0].parsed];
   const out=[];
   rows.forEach((r,ix)=>{
     const mid="M"+String(ix+1).padStart(5,"0");
-    r.flat.match_id=mid;
+    r.flat[mkey]=mid;
     out.push({flat:r.flat,parsed});
     if(rnd()*100<pct){
       const n=randint(1,maxV);
       for(let k=0;k<n;k++){
         const c=damageRow(en,r.flat,lvl);
-        c.match_id=mid;
+        c[mkey]=mid;
         out.push({flat:c,parsed,base:r.flat});
       }
     }
@@ -739,7 +772,10 @@ function applyDuplicates(en,rows){
 }
 
 /* ---------- Run: entities in tab order, sharing a value registry ---------- */
-function entRowCount(en){return Math.min(Math.max(parseInt(en.rows)||10,1),10000);}
+function entRowCount(en){
+  const n=parseInt(en.rows,10);
+  return Math.min(Math.max(Number.isFinite(n)?n:100,1),10000);
+}
 function runAll(countFor){
   const seed=initRun();
   const errors=[], registry={}, results=[];
@@ -906,6 +942,7 @@ function render(){
     row.querySelector('[data-act=type]').addEventListener("click",e=>openTypePicker(f,e.currentTarget));
     row.querySelector('[data-act=dup]').addEventListener("click",()=>{
       const c=newField(f.name+"_copy",f.type,JSON.parse(JSON.stringify(f.opts)));
+      if(f.sim) c.sim={...f.sim};
       fields.splice(idx+1,0,c);render();
     });
     row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);render();});
@@ -990,6 +1027,7 @@ function choosePick(i){
   const f=pickField;
   if(it.value.startsWith("faker:")){f.type="Faker (any)";f.opts={method:it.value.slice(6)};}
   else{f.type=it.value;f.opts=Object.assign({},TYPES[f.type].opts||{});}
+  if(f.sim&&(fieldKind(f)==="keep"||fieldKind(f)==="uuid")) delete f.sim;
   closeTypePicker();render();
 }
 $("type-q").addEventListener("input",renderPickList);
@@ -1096,8 +1134,10 @@ function refresh(){
         if(!r.base) continue;
         for(const f of curEnt().fields){
           if(!f.sim||!f.sim.algo) continue;
+          const k=fieldKind(f);
+          if(k==="keep"||k==="uuid") continue;
           const a=r.base[f.name], b=r.flat[f.name];
-          if(a===undefined||b===undefined||Array.isArray(a)||Array.isArray(b)) continue;
+          if(a===undefined||b===undefined||a===null||b===null||a===""||b===""||Array.isArray(a)||Array.isArray(b)) continue;
           (stats[f.name]=stats[f.name]||[]).push((SIM_FNS[f.sim.algo]||jaroWinkler)(String(a),String(b)));
         }
       }
@@ -1207,13 +1247,14 @@ $("file-import").addEventListener("change",e=>{
         if(!entities.length) entities=[newEntity("Records")];
         activeEnt=0; fields=curEnt().fields; syncToolbar();
         render();setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok");
-      }else{                                               // v1: single schema
+      }else{                                               // v1: the file is the whole schema
         const list=Array.isArray(data)?data:data.fields;
         if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields");
-        curEnt().fields=fields=mkFields(list);
-        if(data.root)curEnt().root=data.root;
-        if(data.record)curEnt().record=data.record;
-        syncToolbar();
+        const en=newEntity("Records");
+        en.fields=mkFields(list);
+        if(data.root)en.root=data.root;
+        if(data.record)en.record=data.record;
+        entities=[en]; activeEnt=0; fields=en.fields; syncToolbar();
         render();setStatus("Imported "+fields.length+" fields.","ok");
       }
     }catch(err){setStatus("Import failed: "+err.message,"err");}
