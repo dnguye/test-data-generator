@@ -194,7 +194,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
     </span>
   </div>
   <div class="spacer"></div>
-  <div class="status" id="status">Ready.</div>
+  <div class="status" id="status">Add a field to start &mdash; or press Load example.</div>
   <button id="btn-preview" class="soft">Refresh preview</button>
 </div>
 
@@ -1361,8 +1361,9 @@ if(location.hash.startsWith("#s=")){
     }
   }catch(e){setStatus("Couldn't read the schema in this link: "+e.message,"err",8000);}
 }
-if(!bootedFromLink) $("btn-example").click();
-refresh();
+/* a plain load starts blank; the example is opt-in via Load example */
+render();
+document.body.dataset.ready="1";
 </script>
 </body>
 </html>
