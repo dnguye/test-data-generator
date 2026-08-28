@@ -63,7 +63,9 @@ Each field is a card: name on top, type picker right below (click it and type to
 
 Need linked record types — Contacts pointing at real Account ids? Add an **entity tab** per record type; tabs generate left-to-right in one run, and a **Reference** field on the child picks from the values a parent entity actually produced (random many-to-one, or `unique` for one-to-one). *Download all* saves one file per entity from a single run, so IDs line up across files, and a seed reproduces the whole linked dataset.
 
-The full guide — every field type, structure syntax, linked entities, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
+Testing a matching or dedup engine? The **dups** control emits fuzzed duplicate variants of a chosen share of records (three intensity presets, damage picked by field type — typos in names, reformatted phones, shifted dates) with a **match_id** ground-truth column: originals and their variants share a value, so scoring a matcher is a group-by. UUIDs regenerate per variant; references stay intact.
+
+The full guide — every field type, structure syntax, linked entities, matching/dedup datasets, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
 
 ## Field naming
 

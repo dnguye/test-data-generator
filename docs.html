@@ -71,7 +71,7 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
   press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
-    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a>
+    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a>
     <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a>
   </div>
 </div>
@@ -135,6 +135,38 @@ orders.order[1-3].qty</code></pre>
   across files. With a seed set, the entire linked dataset is reproducible.</p>
   <p class="dim">The live preview samples parent values from each parent's first 500 rows to stay fast; downloads
   always generate full row counts.</p>
+</div>
+
+<div class="card" id="matching">
+  <h2>Testing matching &amp; dedup</h2>
+  <p>To test a matching or deduplication engine you need records that are <em>almost</em> the same — a person entered
+  twice with a typo, a different phone format, a missing value. The <b>dups</b> control in the toolbar does this
+  per entity:</p>
+  <pre><code>dups: [ off | light | medium | heavy ]   20 %   &times; 2</code></pre>
+  <p>With dups on, the chosen percentage of records get 1 to &times;N fuzzed duplicate variants. Rows are shuffled so
+  duplicates are not adjacent, and a <b>match_id</b> column is added: an original and its variants share a value,
+  a record with no duplicates has its own. That column is the ground truth — pairs that share a
+  <code>match_id</code> should match; strip the column before feeding the file to your matcher, then score its
+  output with a group-by.</p>
+  <h3>What each level does</h3>
+  <table>
+    <tr><th>Level</th><th>Fields fuzzed</th><th>Kinds of damage</th></tr>
+    <tr><td>light</td><td>1</td><td>case changes and stray whitespace only — trivially matchable</td></tr>
+    <tr><td>medium</td><td>1&ndash;2</td><td>typos (transpose / drop / double a letter), email local-part fuzz, phone reformatting, date &plusmn;1 day, a wrong digit in a zip</td></tr>
+    <tr><td>heavy</td><td>2&ndash;3</td><td>everything above, plus double typos, blanked values, transposed month/day, numbers &plusmn;1</td></tr>
+  </table>
+  <p>Damage is chosen by field type, so a phone gets reformatted rather than misspelled and a date shifts by a day
+  rather than gaining a letter.</p>
+  <h3>What stays intact</h3>
+  <ul>
+    <li><b>UUID fields regenerate</b> on each variant — a duplicate is a distinct system record with its own ID.</li>
+    <li><b>Row Number</b> renumbers sequentially over the final (shuffled) output.</li>
+    <li><b>Reference, Boolean and Static Value</b> fields are copied unchanged — a duplicate Contact still points at
+    the same Account.</li>
+  </ul>
+  <p class="dim">The row count is the number of <em>base</em> records; the output file is larger by the variants.
+  With a seed set, the entire messy dataset — including which records got duplicates and how they were fuzzed —
+  is reproducible.</p>
 </div>
 
 <div class="card" id="formulas">

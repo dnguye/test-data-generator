@@ -85,6 +85,7 @@ h1 span{color:var(--accent)}
 .tb-group label{font-family:var(--mono);font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .tb-group input{font-family:var(--mono);font-size:.8rem}
 #xml-names input{width:96px}
+#dupPct,#dupMax{width:54px}
 .tb-sep{width:1px;height:22px;background:var(--line)}
 .spacer{flex-grow:1}
 .status{font-family:var(--mono);font-size:.68rem;color:var(--muted);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -175,6 +176,15 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   <div class="tb-sep"></div>
   <div class="tb-group"><label for="rows">rows</label><input type="number" id="rows" value="100" min="1" max="10000"></div>
   <div class="tb-group"><label for="seed">seed</label><input type="number" id="seed" placeholder="random"></div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <label for="dupLevel" title="Emit fuzzed duplicate variants of some records, for testing matching / dedup">dups</label>
+    <select id="dupLevel"><option value="off">off</option><option value="light">light</option><option value="medium">medium</option><option value="heavy">heavy</option></select>
+    <span id="dup-opts" class="tb-group" style="display:none">
+      <input type="number" id="dupPct" min="1" max="100" value="20" title="% of records that get duplicate variants" aria-label="Duplicate percent"><label for="dupPct">%</label>
+      <label for="dupMax" title="max variants per duplicated record">&times;</label><input type="number" id="dupMax" min="1" max="5" value="2" aria-label="Max variants per record">
+    </span>
+  </div>
   <div class="spacer"></div>
   <div class="status" id="status">Ready.</div>
   <button id="btn-preview" class="soft">Refresh preview</button>
@@ -367,7 +377,7 @@ let eid = 0;
 let entities = [];
 let activeEnt = 0;
 function newEntity(name){
-  return {id:++eid, name:name||("Entity"+eid), rows:"100", root:"records", record:"record", fields:[]};
+  return {id:++eid, name:name||("Entity"+eid), rows:"100", root:"records", record:"record", dupLevel:"off", dupPct:"20", dupMax:"2", fields:[]};
 }
 function curEnt(){return entities[activeEnt];}
 function newField(name,type,opts){
@@ -532,13 +542,130 @@ function toCsv(rows){
   return lines.join("\n");
 }
 
+/* ---------- Duplicate variants (for testing matching / dedup) ----------
+   A fraction of records get fuzzed copies; original and copies share a
+   match_id so a matcher's output can be scored against ground truth. */
+function fieldKind(f){
+  const m=(f.type==="Faker (any)"?(f.opts.method||""):"").toLowerCase();
+  if(f.type==="Email"||m.includes("email")) return "email";
+  if(f.type==="Phone"||m.includes("phone")) return "phone";
+  if(f.type==="Date") return "date";
+  if(f.type==="Number") return "number";
+  if(f.type==="Zip Code") return "digits";
+  if(f.type==="UUID") return "uuid";
+  if(f.type==="Row Number"||f.type==="Boolean"||f.type==="Static Value"||f.type==="Reference") return "keep";
+  return "string";
+}
+function _typo(s){
+  s=String(s); if(s.length<2) return s+s[0];
+  const i=randint(0,s.length-2), op=randint(0,2);
+  if(op===0) return s.slice(0,i)+s[i+1]+s[i]+s.slice(i+2);
+  if(op===1) return s.slice(0,i)+s.slice(i+1);
+  return s.slice(0,i)+s[i]+s.slice(i);
+}
+function _flipCase(s){s=String(s);const op=randint(0,2);
+  return op===0?s.toUpperCase():op===1?s.toLowerCase():s.charAt(0).toLowerCase()+s.slice(1);}
+function _space(s){s=String(s);if(!s.length)return s;const i=randint(0,s.length-1);
+  return randint(0,1)?s+" ":s.slice(0,i)+"  "+s.slice(i);}
+function _digitSwap(s){
+  s=String(s);const ds=[];for(let i=0;i<s.length;i++)if(s[i]>="0"&&s[i]<="9")ds.push(i);
+  if(!ds.length) return s;
+  const i=pick(ds);
+  return s.slice(0,i)+String((parseInt(s[i])+randint(1,9))%10)+s.slice(i+1);
+}
+function _phoneFmt(s){
+  const d=String(s).replace(/\D/g,""); if(d.length<7) return _digitSwap(s);
+  const t=d.slice(-10), op=randint(0,2);
+  if(op===0) return d;
+  if(op===1) return t.slice(0,3)+"-"+t.slice(3,6)+"-"+t.slice(6);
+  return "("+t.slice(0,3)+") "+t.slice(3,6)+"-"+t.slice(6);
+}
+function _dateShift(s,allowSwap){
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return _digitSwap(s);
+  if(allowSwap&&parseInt(m[3])<=12&&m[2]!==m[3]&&randint(0,1))
+    return m[1]+"-"+m[3]+"-"+m[2]+String(s).slice(10);      // MM/DD transposed
+  const d=new Date(Date.parse(m[0])+(randint(0,1)?1:-1)*86400000);
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+String(s).slice(10);
+}
+function _emailFuzz(s){
+  s=String(s); const at=s.indexOf("@"); if(at<1) return _typo(s);
+  const op=randint(0,2);
+  if(op===0) return s.slice(0,at).replace(/\./g,"")+s.slice(at);
+  if(op===1) return _typo(s.slice(0,at))+s.slice(at);
+  return s.toLowerCase();
+}
+function damageValue(kind,lvl,v){
+  if(v===null||v===undefined||v==="") return v;
+  if(kind==="email")  return lvl==="light"?_flipCase(v):_emailFuzz(v);
+  if(kind==="phone")  return _phoneFmt(v);
+  if(kind==="date")   return _dateShift(v,lvl==="heavy");
+  if(kind==="digits") return _digitSwap(v);
+  if(kind==="number") return typeof v==="number"?v+randint(-1,1):v;
+  if(lvl==="light")   return randint(0,1)?_flipCase(v):_space(v);
+  if(lvl==="medium"){const op=randint(0,2);return op===0?_typo(v):op===1?_flipCase(v):_space(v);}
+  const op=randint(0,3);
+  return op===0?_typo(_typo(v)):op===1?_typo(v):op===2?"":_flipCase(v);
+}
+function damageRow(en,flat,lvl){
+  const c={}; for(const k in flat){const v=flat[k];c[k]=Array.isArray(v)?v.slice():v;}
+  /* a duplicate is a distinct system record: regenerate its system identifiers */
+  for(const f of en.fields) if(fieldKind(f)==="uuid")
+    c[f.name]=Array.isArray(c[f.name])?c[f.name].map(()=>uuid()):uuid();
+  const cand=en.fields.filter(f=>{
+    const k=fieldKind(f);
+    if(k==="keep"||k==="uuid") return false;
+    if(lvl!=="heavy"&&k==="number") return false;
+    if(lvl==="light"&&(k==="date"||k==="digits")) return false;
+    const v=c[f.name]; return v!==undefined&&v!==null&&v!=="";
+  });
+  if(!cand.length) return c;
+  const n=Math.min(lvl==="light"?1:lvl==="medium"?randint(1,2):randint(2,3),cand.length);
+  const idxs=cand.map((_,i)=>i);
+  for(let k=idxs.length-1;k>0;k--){const j=Math.floor(rnd()*(k+1));[idxs[k],idxs[j]]=[idxs[j],idxs[k]];}
+  for(const ix of idxs.slice(0,n)){
+    const f=cand[ix], kind=fieldKind(f), v=c[f.name];
+    if(Array.isArray(v)){ if(v.length){const j=randint(0,v.length-1);v[j]=damageValue(kind,lvl,v[j]);} }
+    else c[f.name]=damageValue(kind,lvl,v);
+  }
+  return c;
+}
+function applyDuplicates(en,rows){
+  const lvl=en.dupLevel;
+  const pct=Math.min(Math.max(parseInt(en.dupPct)||20,1),100);
+  const maxV=Math.min(Math.max(parseInt(en.dupMax)||2,1),5);
+  const mseg={f:{name:"match_id",type:"Static Value",opts:{}},
+              segs:[{key:"match_id",repeat:null,attr:false}], rp:null};
+  const parsed=[mseg,...rows[0].parsed];
+  const out=[];
+  rows.forEach((r,ix)=>{
+    const mid="M"+String(ix+1).padStart(5,"0");
+    r.flat.match_id=mid;
+    out.push({flat:r.flat,parsed});
+    if(rnd()*100<pct){
+      const n=randint(1,maxV);
+      for(let k=0;k<n;k++){
+        const c=damageRow(en,r.flat,lvl);
+        c.match_id=mid;
+        out.push({flat:c,parsed});
+      }
+    }
+  });
+  for(let k=out.length-1;k>0;k--){const j=Math.floor(rnd()*(k+1));[out[k],out[j]]=[out[j],out[k]];}
+  const rn=en.fields.filter(f=>f.type==="Row Number").map(f=>f.name);
+  if(rn.length) out.forEach((r,i)=>rn.forEach(nm=>{if(!Array.isArray(r.flat[nm]))r.flat[nm]=i+1;}));
+  return out;
+}
+
 /* ---------- Run: entities in tab order, sharing a value registry ---------- */
 function entRowCount(en){return Math.min(Math.max(parseInt(en.rows)||10,1),10000);}
 function runAll(countFor){
   const seed=initRun();
   const errors=[], registry={}, results=[];
   for(const en of entities){
-    const {rows}=generateRows(en.fields, countFor(en), registry, errors);
+    let {rows}=generateRows(en.fields, countFor(en), registry, errors);
+    if(en.dupLevel&&en.dupLevel!=="off"&&rows.length&&en.fields.length) rows=applyDuplicates(en,rows);
     const reg={};
     for(const f of en.fields){
       const vals=[];
@@ -630,7 +757,12 @@ function renderTabs(){
   bar.appendChild(add);
 }
 function switchEnt(ix){activeEnt=ix;fields=curEnt().fields;syncToolbar();render();}
-function syncToolbar(){$("rows").value=curEnt().rows;$("rootEl").value=curEnt().root;$("recEl").value=curEnt().record;}
+function syncToolbar(){
+  $("rows").value=curEnt().rows;$("rootEl").value=curEnt().root;$("recEl").value=curEnt().record;
+  $("dupLevel").value=curEnt().dupLevel||"off";$("dupPct").value=curEnt().dupPct||"20";$("dupMax").value=curEnt().dupMax||"2";
+  syncDupVis();
+}
+function syncDupVis(){$("dup-opts").style.display=(curEnt().dupLevel||"off")!=="off"?"inline-flex":"none";}
 function renameEntity(en,name){
   name=name.trim()||en.name;
   while(entities.some(e=>e!==en&&e.name===name)) name+="_2";
@@ -869,7 +1001,8 @@ $("fmt-seg").querySelectorAll("button").forEach(b=>{
   });
 });
 $("seed").addEventListener("input",schedule);
-[["rows","rows"],["rootEl","root"],["recEl","record"]].forEach(([id,k])=>{
+$("dupLevel").addEventListener("change",e=>{curEnt().dupLevel=e.target.value;syncDupVis();schedule();});
+[["rows","rows"],["rootEl","root"],["recEl","record"],["dupPct","dupPct"],["dupMax","dupMax"]].forEach(([id,k])=>{
   $(id).addEventListener("input",e=>{curEnt()[k]=e.target.value;schedule();});
   $(id).addEventListener("change",()=>renderTabs());
 });
@@ -925,7 +1058,7 @@ $("btn-example").addEventListener("click",()=>{
   render();setStatus("Example loaded — Contacts pick their account_id from generated Account ids.","ok");
 });
 $("btn-export").addEventListener("click",()=>{
-  const schema={version:2,entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,
+  const schema={version:2,entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
     fields:en.fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))}))};
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
@@ -947,6 +1080,8 @@ $("file-import").addEventListener("change",e=>{
         entities=data.entities.map(e=>{
           const en=newEntity(e.name);
           en.rows=String(e.rows??"100"); en.root=e.root||"records"; en.record=e.record||"record";
+          en.dupLevel=["light","medium","heavy"].includes(e.dupLevel)?e.dupLevel:"off";
+          en.dupPct=String(e.dupPct??"20"); en.dupMax=String(e.dupMax??"2");
           en.fields=mkFields(Array.isArray(e.fields)?e.fields:[]);
           return en;
         });
