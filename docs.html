@@ -173,6 +173,42 @@ field('notes').trim()</code></pre>
 <span class="cm">// numbered repeats: ITEM-1, ITEM-2, &hellip; (in a repeating field)</span>
 'ITEM-' + (i + 1)</code></pre>
 
+  <h3>CRM-style record IDs</h3>
+  <p>Every recipe below uses <code>rand()</code>, so a seed makes the IDs reproducible.</p>
+  <pre><code><span class="cm">// Salesforce 15-char ID: 003AD8rgZcOitPJ</span>
+<span class="cm">// key prefix picks the object: 001 Account &#183; 003 Contact &#183; 006 Opportunity &#183; 00Q Lead &#183; 500 Case</span>
+'003' + Array.from({length: 12}, () =&gt; 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[rand(0, 61)]).join('')
+
+<span class="cm">// Salesforce 18-char ID with a VALID checksum suffix: 006vgMWShS8P2LIAX0</span>
+<span class="cm">// (the last 3 chars encode the casing of the first 15, like real SF IDs)</span>
+(() =&gt; {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '006';                                    // 006 = Opportunity
+  for (let k = 0; k &lt; 12; k++) id += chars[rand(0, 61)];
+  const map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345';    // real SF suffix alphabet
+  let sfx = '';
+  for (let c = 0; c &lt; 3; c++) {                      // 3 chunks of 5 chars:
+    let b = 0;                                       // bit per uppercase position
+    for (let p = 0; p &lt; 5; p++) if (id[c*5+p] &gt;= 'A' &amp;&amp; id[c*5+p] &lt;= 'Z') b |= 1 &lt;&lt; p;
+    sfx += map[b];
+  }
+  return id + sfx;
+})()
+
+<span class="cm">// HubSpot-style numeric record id: 239179627</span>
+rand(100000000, 999999999)
+
+<span class="cm">// Zendesk-style sequential ticket: #10001 (uses a Row Number field named id)</span>
+'#' + (10000 + field('id'))
+
+<span class="cm">// Jira-style issue key: CRM-3618</span>
+'CRM-' + rand(1000, 9999)
+
+<span class="cm">// Stripe-style prefixed token: cus_hvE4imq7m5zCKW</span>
+'cus_' + Array.from({length: 14}, () =&gt; 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[rand(0, 61)]).join('')
+
+<span class="cm">// Dynamics 365 uses GUIDs &#8212; no formula needed, use the UUID field type</span></code></pre>
+
   <h3>Numbers &amp; conditions</h3>
   <pre><code><span class="cm">// price with 2 decimals: 214.55</span>
 rand(2000, 40000) / 100
