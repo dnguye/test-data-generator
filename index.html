@@ -486,6 +486,25 @@ function optHint(f){
   if(f.type==="Date") return "from \u00b7 to \u00b7 format";
   return "";
 }
+function typeSelectHTML(f){
+  /* A Faker method selection is stored as type "Faker (any)" + opts.method.
+     Reflect that back as the matching option so the dropdown shows it. */
+  const method=(f.type==="Faker (any)"&&f.opts&&f.opts.method)?String(f.opts.method).trim():null;
+  const cur=(method&&FAKER_METHODS.includes(method))?"faker:"+method:f.type;
+  let html='<optgroup label="Built-in types">'+
+    TYPE_NAMES.map(t=>`<option value="${t}"${t===cur?" selected":""}>${t}</option>`).join("")+
+    "</optgroup>";
+  let mod=null;
+  for(const path of FAKER_METHODS){
+    const m=path.split(".")[0];
+    if(m!==mod){ if(mod)html+="</optgroup>"; html+=`<optgroup label="faker \u00b7 ${m}">`; mod=m; }
+    const v="faker:"+path;
+    html+=`<option value="${v}"${v===cur?" selected":""}>${path}</option>`;
+  }
+  if(mod)html+="</optgroup>";
+  return `<select data-k="type" aria-label="Field type">${html}</select>`;
+}
+
 function render(){
   $fields.innerHTML="";
   fields.forEach((f,idx)=>{
@@ -501,13 +520,16 @@ function render(){
         <span class="sample" data-sample>&nbsp;</span>
       </div>
       <div class="cell-type">
-        <select data-k="type" aria-label="Field type">${TYPE_NAMES.map(t=>`<option${t===f.type?" selected":""}>${t}</option>`).join("")}</select>
+        ${typeSelectHTML(f)}
       </div>
       <div class="cell-opts">${optsUI(f)}<div class="hint">${optHint(f)}</div></div>
       <button class="del" data-act="del" title="Remove field" aria-label="Remove field">&#10005;</button>`;
     row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;debSample();});
     row.querySelector('[data-k=type]').addEventListener("change",e=>{
-      f.type=e.target.value;f.opts=Object.assign({},TYPES[f.type].opts||{});render();
+      const v=e.target.value;
+      if(v.startsWith("faker:")){ f.type="Faker (any)"; f.opts={method:v.slice(6)}; }
+      else { f.type=v; f.opts=Object.assign({},TYPES[f.type].opts||{}); }
+      render();
     });
     row.querySelectorAll("[data-opt]").forEach(el=>{
       el.addEventListener("input",e=>{f.opts[e.target.dataset.opt]=e.target.value;debSample();});
