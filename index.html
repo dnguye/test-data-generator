@@ -1116,7 +1116,7 @@ function refresh(){
   clearTimeout(_schedT);
   if(_skipNext){
     _skipNext=false;
-    $("preview").textContent="Schema loaded from a shared link. It contains Formula (JS) fields — code written by whoever made the link. Review them, then press Refresh preview.";
+    $("preview").textContent="This schema contains Formula (JS) fields — code written by whoever created it. Review them, then press Refresh preview.";
     $("prev-count").textContent="";
     return;
   }
@@ -1316,20 +1316,27 @@ $("file-import").addEventListener("change",e=>{
     try{
       const data=JSON.parse(rd.result);
       if(Array.isArray(data.entities)){                     // v2: multi-entity
+        const hasFx=data.entities.some(e=>(e.fields||[]).some(f=>f.type==="Formula (JS)"));
+        if(hasFx) _skipNext=true;
         applySchema(data);
-        setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok",4000);
+        setStatus(hasFx?"Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+" — review the JS formulas, then press Refresh preview."
+                       :"Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok",hasFx?8000:4000);
       }else{                                               // v1: the file is the whole schema
         const list=Array.isArray(data)?data:data.fields;
         if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields — use a file saved by 'Export schema'");
         const isField=f=>f&&typeof f==="object"&&!Array.isArray(f)&&(typeof f.type==="string"||(f.opts&&typeof f.opts==="object"));
         if(!list.length||!list.every(isField))
           throw new Error("This looks like generated DATA, not a schema. Import the file saved by 'Export schema' (each field needs name, type and opts).");
+        const hasFx=list.some(f=>f&&f.type==="Formula (JS)");
+        if(hasFx) _skipNext=true;
         const en=newEntity("Records");
         en.fields=mkFields(list);
         if(data.root)en.root=data.root;
         if(data.record)en.record=data.record;
         entities=[en]; activeEnt=0; fields=en.fields; syncToolbar();
-        render();setStatus("Imported "+fields.length+" fields.","ok",4000);
+        render();
+        setStatus(hasFx?"Imported "+fields.length+" fields — review the JS formulas, then press Refresh preview."
+                       :"Imported "+fields.length+" fields.","ok",hasFx?8000:4000);
       }
     }catch(err){setStatus("Import failed: "+err.message,"err",8000);}
   };
