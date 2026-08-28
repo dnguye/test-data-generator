@@ -53,6 +53,10 @@ td:first-child{white-space:nowrap;font-weight:600}
 .kv{color:var(--ok)}
 .cm{color:var(--muted)}
 kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.h3row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 8px}
+.h3row h3{margin:0}
+.h3row button{font-family:var(--body);font-size:.78rem;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:7px;padding:7px 13px;cursor:pointer}
+.h3row button:hover{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -336,15 +340,20 @@ rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
   plain description — can author an importable <code>schema.json</code> without ever seeing the app.
   A copy ships in the repo as <a href="https://github.com/dnguye/Test-data-generator/blob/main/SCHEMA.md" rel="noopener">SCHEMA.md</a>.</p>
 
-  <h3>Prompt to hand an AI</h3>
-  <pre><code>Read the schema format specification below, then convert the following XML
-schema into an importable schema.json. Encode structure in the dotted
-field-path notation (@ for attributes, [min-max] for repetition), pick the
-closest semantic type for each element, and use Formula (JS) expressions
-for derived values. Type names must match the spec exactly.
-Output only the JSON.
+  <div class="h3row">
+    <h3>Prompt to hand an AI</h3>
+    <button id="copy-prompt" type="button">Copy prompt + spec</button>
+  </div>
+  <pre><code>Read the schema format specification below, then convert the XML schema (XSD)
+I provide at the end into an importable schema.json for Test Data Generator.
+Encode structure in the dotted field-path notation (@ for attributes,
+[min-max] for repetition), pick the closest semantic type for each element,
+and use Formula (JS) expressions for derived values. Type names must match
+the specification exactly. Output only the JSON.
 
-&lt;paste the specification, then your XSD&gt;</code></pre>
+=== SPECIFICATION === &hellip; === MY XSD === &hellip;</code></pre>
+  <p class="dim">The button copies the full package — this prompt, the complete specification, and a
+  paste-your-XSD marker — ready to drop into any AI chat.</p>
 
   <h3>Top level</h3>
   <pre><code>{
@@ -424,5 +433,35 @@ Output only the JSON.
 </div>
 
 </main>
+<script>
+(function(){
+  var btn=document.getElementById("copy-prompt");
+  if(!btn) return;
+  var PROMPT="Read the schema format specification below, then convert the XML schema (XSD) I provide at the end into an importable schema.json for Test Data Generator. Encode structure in the dotted field-path notation (@ for attributes, [min-max] for repetition), pick the closest semantic type for each element, and use Formula (JS) expressions for derived values. Type names must match the specification exactly. Output only the JSON.\n\n=== SPECIFICATION ===\n";
+  var TAIL="\n=== MY XSD ===\n(paste your XSD here)\n";
+  function flash(msg){var t=btn.textContent;btn.textContent=msg;setTimeout(function(){btn.textContent=t;},2200);}
+  function put(text){
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      var done=false;
+      var t=setTimeout(function(){if(!done){done=true;fallback(text);}},900); // the permission prompt can hang the promise
+      navigator.clipboard.writeText(text).then(
+        function(){if(!done){done=true;clearTimeout(t);flash("Copied \u2713");}},
+        function(){if(!done){done=true;clearTimeout(t);fallback(text);}});
+    }else fallback(text);
+  }
+  function fallback(text){
+    var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");flash("Copied \u2713");}catch(e){flash("Copy failed");}
+    ta.remove();
+  }
+  btn.addEventListener("click",function(){
+    fetch("./SCHEMA.md").then(function(r){if(!r.ok)throw 0;return r.text();})
+      .then(function(md){put(PROMPT+md+TAIL);})
+      .catch(function(){ /* offline / file:// fallback: the rendered section text */
+        put(PROMPT+document.getElementById("spec").innerText+TAIL);
+      });
+  });
+})();
+</script>
 </body>
 </html>
