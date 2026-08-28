@@ -260,6 +260,24 @@ field('city').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/
 <span class="cm">// trim whitespace</span>
 field('notes').trim()</code></pre>
 
+  <h3>Consistent city / state / zip</h3>
+  <p>The built-in address types are <em>independent</em> random draws — the zip won't belong to the city, and the
+  city won't be in the state (the underlying Faker library's cities are fictional, so no true mapping exists).
+  For geographically consistent records, put real triples in one Custom List and split it with formulas:</p>
+  <pre><code><span class="cm">// geo — Custom List, values:</span>
+Springfield|IL|62701, Austin|TX|78701, Denver|CO|80202, Portland|OR|97201
+
+<span class="cm">// city — Formula (JS)</span>
+field('geo').split('|')[0]
+
+<span class="cm">// state — Formula (JS)</span>
+field('geo').split('|')[1]
+
+<span class="cm">// zip — Formula (JS)</span>
+field('geo').split('|')[2]</code></pre>
+  <p class="dim">Each record picks one triple, so all three fields stay consistent. The helper <code>geo</code>
+  column does appear in the output — name it something downstream consumers can ignore.</p>
+
   <h3>IDs &amp; codes</h3>
   <pre><code><span class="cm">// padded code: CUST-000042 (uses a Row Number field named id)</span>
 'CUST-' + pad(field('id'), 6)
