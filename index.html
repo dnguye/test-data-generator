@@ -227,6 +227,36 @@ function fk(path, fallback, args){
   }
   return fallback ? fallback() : "#unknown:"+path;
 }
+/* ---------- Faker method catalog (for autocomplete) ---------- */
+/* Walks the loaded Faker instance so the full modern catalog is discoverable
+   in the UI instead of having to be known and typed from memory. */
+const FAKER_METHODS = (()=>{
+  if(!HAS_FAKER) return [];
+  const SKIP=new Set(["helpers","definitions","rawDefinitions","locales","locale","localeFallback"]);
+  const found=[];
+  for(const mod of Object.keys(faker)){
+    if(SKIP.has(mod)||mod.startsWith("_")) continue;
+    const m=faker[mod];
+    if(!m||typeof m!=="object") continue;
+    const proto=Object.getPrototypeOf(m)||{};
+    const keys=new Set([...Object.keys(m),...Object.getOwnPropertyNames(proto)]);
+    for(const k of keys){
+      if(k==="constructor"||k.startsWith("_")) continue;
+      let fn; try{fn=m[k];}catch(e){continue;}
+      if(typeof fn==="function") found.push(mod+"."+k);
+    }
+  }
+  /* Keep only methods that actually produce a value with no arguments, since
+     that is how this tool calls them. Silence deprecation notices while probing. */
+  const warn=console.warn; console.warn=()=>{};
+  const usable=found.filter(path=>{
+    const [mod,k]=path.split(".");
+    try{ return faker[mod][k]()!==undefined; }catch(e){ return false; }
+  });
+  console.warn=warn;
+  return usable.sort();
+})();
+
 function uuid(){
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{
     const r=Math.floor(rnd()*16), v=c==="x"?r:(r&0x3|0x8);return v.toString(16);
@@ -442,12 +472,15 @@ function optsUI(f){
   return Object.keys(t.opts).map(k=>{
     const val=f.opts[k]??t.opts[k];
     if(k==="expr"||k==="values") return `<textarea data-opt="${k}" rows="2" aria-label="${k}">${val}</textarea>`;
-    return `<input type="text" data-opt="${k}" value="${String(val).replace(/"/g,"&quot;")}" placeholder="${k}" aria-label="${k}">`;
+    const list=(f.type==="Faker (any)"&&k==="method"&&FAKER_METHODS.length)?' list="faker-methods"':"";
+    return `<input type="text" data-opt="${k}" value="${String(val).replace(/"/g,"&quot;")}" placeholder="${k}" aria-label="${k}"${list}>`;
   }).join("");
 }
 function optHint(f){
   if(f.type==="Formula (JS)") return "JS expression \u00b7 field('name')";
-  if(f.type==="Faker (any)") return "any method path \u00b7 e.g. finance.iban, vehicle.vin, commerce.productName";
+  if(f.type==="Faker (any)") return FAKER_METHODS.length
+    ? FAKER_METHODS.length+" methods \u00b7 click the box and type to search \u00b7 e.g. finance.iban, vehicle.vin"
+    : "Faker not loaded \u2014 method paths unavailable";
   if(f.type==="Custom List") return "comma-separated values";
   if(f.type==="Number") return "min \u00b7 max \u00b7 decimals";
   if(f.type==="Date") return "from \u00b7 to \u00b7 format";
@@ -597,6 +630,12 @@ document.getElementById("format").addEventListener("change",e=>{
 });
 
 /* ---------- Boot ---------- */
+if(FAKER_METHODS.length){
+  const dl=document.createElement("datalist");
+  dl.id="faker-methods";
+  dl.innerHTML=FAKER_METHODS.map(m=>`<option value="${m}"></option>`).join("");
+  document.body.appendChild(dl);
+}
 if(!HAS_FAKER) setStatus("Faker not loaded (CDN blocked?) \u2014 using built-in sample pools. See README to vendor faker.js locally.","err");
 document.getElementById("btn-example").click();
 document.getElementById("btn-preview").click();

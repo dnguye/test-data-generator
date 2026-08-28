@@ -60,7 +60,9 @@ Keep one schema file per data model and import whichever you need.
 ## Field types
 
 - **Built-ins:** names, email, phone, address parts, company, job title, UUID, boolean, number (min/max/decimals), date (range + format), custom list, static value, lorem words
-- **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.userName`, `commerce.productName`, `git.commitSha`, etc. See [fakerjs.dev/api](https://fakerjs.dev/api/) for the full catalog.
+- **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.username`, `commerce.productName`, `git.commitSha`, etc. Click the method box and type to search: the field autocompletes against every method the loaded Faker build exposes (244 across 26 modules), so you don't need to know a path in advance. The catalog is read from Faker itself at page load, and methods that require arguments are left out because this tool calls them with none. See [fakerjs.dev/api](https://fakerjs.dev/api/) for what each one returns.
+
+  The dropdown of field types is deliberately short — it holds the common built-ins. Anything beyond them comes from **Faker (any)**.
 - **Formula (JS):** JavaScript expression with access to other fields:
   - `field('name')` — value of another field (current repeat index if repeated)
   - `fields('name')` — full array for repeated fields
