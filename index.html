@@ -171,7 +171,6 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   </div>
   <div class="hdr-tools">
     <a class="doclink" href="./docs.html">Docs</a>
-    <button id="btn-share" class="ghost" title="Copy a URL that opens this exact schema and settings">Share link</button>
     <button id="btn-import" class="ghost">Import schema</button>
     <button id="btn-export" class="ghost">Export schema</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
@@ -1287,37 +1286,6 @@ function schemaObj(){
     entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
       fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{}))}))};
 }
-/* ---------- Share by URL: schema lives in the fragment, never sent anywhere ---------- */
-function b64u(u8){let x="";for(const b of u8)x+=String.fromCharCode(b);return btoa(x).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
-function b64uDec(x){x=x.replace(/-/g,"+").replace(/_/g,"/");while(x.length%4)x+="=";const bin=atob(x);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
-async function encodeShare(obj){
-  const json=JSON.stringify(obj);
-  try{
-    const buf=await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
-    return "z"+b64u(new Uint8Array(buf));
-  }catch(e){ return "j"+b64u(new TextEncoder().encode(json)); }
-}
-async function decodeShare(str){
-  const data=b64uDec(str.slice(1));
-  if(str[0]==="z"){
-    const buf=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
-    return JSON.parse(new TextDecoder().decode(buf));
-  }
-  return JSON.parse(new TextDecoder().decode(data));
-}
-$("btn-share").addEventListener("click",async()=>{
-  try{
-    const enc=await encodeShare(schemaObj());
-    history.replaceState(null,"","#s="+enc);
-    const url=location.href;
-    let copied=false;
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      copied=await navigator.clipboard.writeText(url).then(()=>true,()=>false);
-    }
-    setStatus(copied?"Share link copied — opening it restores this exact schema and settings."
-                    :"Share link is in the address bar — copy it from there.","ok",6000);
-  }catch(e){setStatus("Could not build share link: "+e.message,"err",6000);}
-});
 $("btn-export").addEventListener("click",()=>{
   const schema=schemaObj();
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
@@ -1396,19 +1364,8 @@ $("type-q").placeholder="Search "+(TYPE_NAMES.length+FAKER_METHODS.length)+" typ
 setFmt("json");
 if(!HAS_FAKER) setStatus("Faker not loaded — using built-in sample pools. See README to vendor faker.js locally.","err");
 entities=[newEntity("Records")]; fields=curEnt().fields; syncToolbar();
-let bootedFromLink=false;
-if(location.hash.startsWith("#s=")){
-  try{
-    const data=await decodeShare(location.hash.slice(3));
-    if(Array.isArray(data.entities)){
-      if(data.entities.some(e=>(e.fields||[]).some(f=>f.type==="Formula (JS)"))) _skipNext=true;
-      applySchema(data);
-      bootedFromLink=true;
-      setStatus(_skipNext?"Loaded from link — review its JS formulas, then press Refresh preview."
-                         :"Schema loaded from link.","ok",6000);
-    }
-  }catch(e){setStatus("Couldn't read the schema in this link: "+e.message,"err",8000);}
-}
+/* the page honors only its base URL: any fragment is ignored and stripped */
+if(location.hash){try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}}
 /* a plain load starts blank; the example is opt-in via Load example */
 render();
 document.body.dataset.ready="1";

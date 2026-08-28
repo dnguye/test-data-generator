@@ -69,8 +69,6 @@ Need linked record types — Contacts pointing at real Account ids? Add an **ent
 
 Testing a matching or dedup engine? The **dups** control emits fuzzed duplicate variants of a chosen share of records (three intensity presets, damage picked by field type — typos in names, reformatted phones, shifted dates) with a **match_id** ground-truth column: originals and their variants share a value, so scoring a matcher is a group-by. UUIDs regenerate per variant; references stay intact. A fourth level, **targeted**, sets a per-field similarity threshold instead: pick Jaro-Winkler or Levenshtein and a value like 0.90, and variants are fuzzed until they land at that similarity to the original (achieved averages are reported live).
 
-**Share link** encodes the entire workspace into the page URL (compressed, in the `#` fragment, so it never touches a server) — paste the link and the schema, seed, format and all settings load ready to go. Links containing JS formulas load in a review-first state before anything executes.
-
 The full guide — every field type, structure syntax, linked entities, matching/dedup datasets, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
 
 ## Field naming
