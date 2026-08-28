@@ -220,7 +220,22 @@ name      [ exact copy in variants ]</code></pre>
 field('first_name') + ' ' + field('middle')[0] + '. ' + field('last_name')
 
 <span class="cm">// normalize: lenorakuhlman (lowercase, letters and digits only)</span>
-normalize(field('first_name') + field('last_name'))</code></pre>
+normalize(field('first_name') + field('last_name'))
+
+<span class="cm">// email DERIVED from the name fields (use Formula, not the Email type):</span>
+(field('first_name') + '.' + field('last_name')).toLowerCase().replace(/[^a-z0-9.]/g,'') + '@acme-test.com'
+
+<span class="cm">// realistic variety: jdoe, jane.doe, jane_doe83 &mdash; seeded, reproducible</span>
+(()=&gt;{
+  const f = String(field('first_name')).toLowerCase().replace(/[^a-z]/g,'');
+  const l = String(field('last_name')).toLowerCase().replace(/[^a-z]/g,'');
+  const forms   = [f+'.'+l, f[0]+l, f+'_'+l+rand(1,99), l+'.'+f[0]];
+  const domains = ['gmail.com','yahoo.com','outlook.com','acme-test.com'];
+  return forms[rand(0,3)] + '@' + domains[rand(0,3)];
+})()</code></pre>
+  <p class="dim">Formulas are the dependency mechanism: they run after all other fields, and a formula may read an
+  earlier formula &mdash; so <code>username</code> can derive from names and <code>email</code> from
+  <code>username</code>, in that field order.</p>
 
   <h3>Changing case &amp; shape</h3>
   <pre><code><span class="cm">// UPPERCASE</span>
