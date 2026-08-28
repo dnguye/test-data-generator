@@ -285,6 +285,42 @@ field('geo').split('|')[2]</code></pre>
 <span class="cm">// fax — Formula (JS): same area code and exchange, different line &#8594; (303) 735-5265</span>
 field('phone').slice(0,-4) + pad(rand(0,9999),4)</code></pre>
 
+  <h3>International addresses</h3>
+  <p>Same shared-source pattern, one level up: the source entry carries the country's city, phone prefix and
+  currency, while the <b>postal code generates fresh per record in that country's format</b> — UK
+  <code>PA3&nbsp;1EV</code>, Canada <code>R8L&nbsp;2X7</code>, Japan <code>448-8524</code>, Netherlands
+  <code>5389&nbsp;VH</code> — which is what address-format validation actually tests.</p>
+  <pre><code><span class="cm">// intl — Custom List, values: Country|City|PhonePrefix|Currency</span>
+United Kingdom|London|+44|GBP, Germany|Berlin|+49|EUR, Canada|Toronto|+1|CAD,
+Australia|Sydney|+61|AUD, Japan|Tokyo|+81|JPY, France|Paris|+33|EUR,
+Netherlands|Amsterdam|+31|EUR, Brazil|São Paulo|+55|BRL
+
+<span class="cm">// country / city / currency — Formula (JS)</span>
+field('intl').split('|')[0]
+field('intl').split('|')[1]
+field('intl').split('|')[3]
+
+<span class="cm">// postal — Formula (JS): a fresh, format-valid code for the record's own country</span>
+(()=>{ const c=field('country');
+  const D=n=>pad(rand(0,Math.pow(10,n)-1),n);
+  const L=()=>'ABCDEFGHJKLMNPRSTUVWXYZ'[rand(0,22)];
+  switch(c){
+    case 'United Kingdom': return L()+L()+rand(1,9)+' '+rand(1,9)+L()+L();
+    case 'Canada':         return L()+rand(0,9)+L()+' '+rand(0,9)+L()+rand(0,9);
+    case 'Netherlands':    return rand(1000,9999)+' '+L()+L();
+    case 'Japan':          return D(3)+'-'+D(4);
+    case 'Brazil':         return D(5)+'-'+D(3);
+    case 'Australia':      return pad(rand(800,7999),4);
+    default:               return D(5);          <span class="cm">// Germany, France, …</span>
+  }})()
+
+<span class="cm">// phone — Formula (JS): country prefix from the same source</span>
+field('intl').split('|')[2] + ' ' + rand(10,99) + ' ' + pad(rand(0,9999),4) + ' ' + pad(rand(0,9999),4)</code></pre>
+  <p class="dim">Formats are representative, not exhaustive (real UK postcodes have several shapes; this emits one
+  valid one). Extend the switch and the list with whatever countries your validation covers. Note the vendored
+  Faker is the English locale, so person and street names stay Anglophone — pair this with Custom List name pools
+  per country if locale-consistent names matter.</p>
+
   <h3>Corporate email from the company</h3>
   <p>Contacts at the same company should share a domain derived from it (person-derived local parts are under
   <i>Combining fields</i> above):</p>
