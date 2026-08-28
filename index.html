@@ -201,7 +201,6 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   </div>
   <div class="spacer"></div>
   <div class="status" id="status">Add a field to start &mdash; or press Load example.</div>
-  <button id="btn-preview" class="soft">Refresh preview</button>
 </div>
 
 <main>
@@ -225,7 +224,10 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   <section class="panel" id="preview-panel">
     <div class="panel-h">
       <h2>Preview <span id="prev-count" class="cnt"></span></h2>
-      <div class="tools"><button id="btn-copy" class="ghost">Copy</button></div>
+      <div class="tools">
+        <button id="btn-preview" class="icon" style="color:var(--accent)" title="Refresh preview (Ctrl/&#8984;+Enter)" aria-label="Refresh preview"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
+        <button id="btn-copy" class="ghost">Copy</button>
+      </div>
     </div>
     <pre id="preview">Add fields to see a live preview.</pre>
     <div class="note">
