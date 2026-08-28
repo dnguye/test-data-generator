@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation · Test Data Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F8F6FC; --grid:#ECE7F6; --panel:#FFFFFF; --ink:#443F5C; --muted:#8D87A6;
+  --line:#DFD9EE; --soft-bg:#FAF8FD; --accent:#8B7EC8; --accent-dk:#7566B8; --accent-soft:#F0ECFA;
+  --ok:#63A98C; --warn:#D89A5E;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --body:'Inter',system-ui,sans-serif;
+  --display:'Archivo',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--body);color:var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;background-position:-1px -1px;min-height:100vh}
+a{color:var(--accent)} a:hover{color:var(--accent-dk)}
+header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:1.2rem;letter-spacing:-.02em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.tagline{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+.back{font-size:.8rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 13px;border-radius:7px}
+.back:hover{color:var(--ink);background:var(--accent-soft)}
+main{max-width:880px;margin:0 auto;padding:26px 20px 80px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 0 rgba(68,63,92,.05);
+  padding:22px 26px;margin-bottom:18px}
+h2{font-family:var(--display);font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+h3{font-size:.85rem;font-weight:600;margin:18px 0 8px}
+p,li{font-size:.85rem;line-height:1.65;color:var(--ink)}
+p+p{margin-top:8px}
+ul,ol{padding-left:20px;margin:8px 0}
+li{margin:3px 0}
+.dim{color:var(--muted)}
+code{font-family:var(--mono);font-size:.76rem;background:var(--accent-soft);border-radius:4px;padding:1px 5px}
+pre{font-family:var(--mono);font-size:.74rem;line-height:1.65;background:var(--soft-bg);border:1px solid var(--line);
+  border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0}
+pre code{background:none;padding:0}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.8rem}
+th{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+td{padding:7px 10px;border-bottom:1px solid var(--soft-bg);vertical-align:top;line-height:1.55}
+td code{white-space:nowrap}
+td:first-child{white-space:nowrap;font-weight:600}
+.toc{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+.toc a{font-size:.76rem;font-weight:600;text-decoration:none;background:var(--accent-soft);border-radius:99px;padding:5px 13px}
+.kv{color:var(--ok)}
+.cm{color:var(--muted)}
+kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Test <span>Data</span></h1>
+    <div class="tagline">documentation</div>
+  </div>
+  <a class="back" href="./index.html">&larr; Back to the generator</a>
+</header>
+<main>
+
+<div class="card">
+  <h2>Overview</h2>
+  <p>Test Data Generator builds realistic fake data from a schema you define: add fields, pick a type for each,
+  press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
+  no server, no account, and no data leaves the page.</p>
+  <div class="toc">
+    <a href="#types">Field types</a><a href="#faker">Faker catalog</a><a href="#structure">Nesting &amp; repeats</a>
+    <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Quick start</h2>
+  <ol>
+    <li><b>Add a field</b> (or press <i>Load example</i>). Each card has the field name on top and the type picker below it.</li>
+    <li><b>Click the type</b> and start typing to search — built-in types plus the full Faker catalog.</li>
+    <li>Watch the <b>preview</b> update as you edit (<kbd>Ctrl/&#8984;+Enter</kbd> refreshes on demand). Each card also shows a live sample value.</li>
+    <li>Pick a format, set the row count, and <b>Download</b>.</li>
+  </ol>
+  <p class="dim">Drag the dotted handle to reorder fields; the copy icon duplicates a field.</p>
+</div>
+
+<div class="card" id="types">
+  <h2>Field types</h2>
+  <table>
+    <tr><th>Type</th><th>Generates</th><th>Options</th></tr>
+    <tr><td>Row Number</td><td>1, 2, 3, &hellip; per record</td><td>&mdash;</td></tr>
+    <tr><td>First Name</td><td><code>Lenora</code></td><td>&mdash;</td></tr>
+    <tr><td>Last Name</td><td><code>Kuhlman</code></td><td>&mdash;</td></tr>
+    <tr><td>Full Name</td><td><code>Lenora Kuhlman</code></td><td>&mdash;</td></tr>
+    <tr><td>Email</td><td><code>Lenora.Kuhlman42@hotmail.com</code></td><td>&mdash;</td></tr>
+    <tr><td>Phone</td><td><code>(555) 234-0192</code></td><td>&mdash;</td></tr>
+    <tr><td>Street Address</td><td><code>4218 Maple Ave</code></td><td>&mdash;</td></tr>
+    <tr><td>City / State / State Abbr / Zip Code / Country</td><td>address parts</td><td>&mdash;</td></tr>
+    <tr><td>Company</td><td><code>Kuhlman &ndash; Ortiz</code></td><td>&mdash;</td></tr>
+    <tr><td>Job Title</td><td><code>Lead Data Engineer</code></td><td>&mdash;</td></tr>
+    <tr><td>Faker (any)</td><td>any method in the Faker library</td><td><code>method</code> — a path like <code>finance.iban</code>; see <a href="#faker">Faker catalog</a></td></tr>
+    <tr><td>UUID</td><td><code>0b6ee01a-9c07-4d92-&hellip;</code></td><td>&mdash;</td></tr>
+    <tr><td>Boolean</td><td><code>true</code> / <code>false</code></td><td>&mdash;</td></tr>
+    <tr><td>Number</td><td>random number</td><td><code>min</code> · <code>max</code> · <code>decimals</code></td></tr>
+    <tr><td>Date</td><td>random date in a range</td><td><code>from</code> · <code>to</code> (ISO dates) · format using <code>YYYY MM DD HH mm ss</code>, e.g. <code>YYYY-MM-DD HH:mm</code></td></tr>
+    <tr><td>Custom List</td><td>one value from your list</td><td><code>values</code> — comma-separated, e.g. <code>red, green, blue</code></td></tr>
+    <tr><td>Static Value</td><td>the same value in every record</td><td><code>value</code></td></tr>
+    <tr><td>Lorem Words</td><td>placeholder words</td><td><code>count</code></td></tr>
+    <tr><td>Formula (JS)</td><td>anything you can compute</td><td><code>expr</code> — a JavaScript expression; see <a href="#formulas">Formulas</a></td></tr>
+  </table>
+</div>
+
+<div class="card" id="faker">
+  <h2>The Faker catalog</h2>
+  <p>The type picker searches the entire <a href="https://fakerjs.dev/api/" rel="noopener">@faker-js/faker v9</a> catalog —
+  244 methods across 26 modules — with a live sample next to each. Picking one sets the field to
+  <b>Faker (any)</b> with that method path; you can also type a path into the method box directly.</p>
+  <p>A few useful ones:</p>
+  <table>
+    <tr><th>Method</th><th>Example output</th></tr>
+    <tr><td><code>finance.iban</code></td><td><code>GB29NWBK60161331926819</code></td></tr>
+    <tr><td><code>finance.creditCardNumber</code></td><td><code>3528-4491-3782-2717</code></td></tr>
+    <tr><td><code>internet.username</code></td><td><code>Lenora.Kuhlman42</code></td></tr>
+    <tr><td><code>internet.ip</code></td><td><code>192.168.14.7</code></td></tr>
+    <tr><td><code>commerce.productName</code></td><td><code>Ergonomic Steel Chair</code></td></tr>
+    <tr><td><code>commerce.isbn</code></td><td><code>978-1-56619-909-4</code></td></tr>
+    <tr><td><code>vehicle.vin</code></td><td><code>1FTFW1E5XJF C10312</code></td></tr>
+    <tr><td><code>git.commitSha</code></td><td><code>4f1f9a0e&hellip;</code></td></tr>
+    <tr><td><code>airline.flightNumber</code></td><td><code>2405</code></td></tr>
+    <tr><td><code>string.alphanumeric</code></td><td><code>kD8s2Wq1</code></td></tr>
+  </table>
+  <p class="dim">The catalog is read from the Faker build the app ships with, and only lists methods that work
+  without arguments — that's how this tool calls them. Methods that require arguments (like
+  <code>date.between</code>) are not listed; use a <b>Date</b> field or a formula instead.</p>
+</div>
+
+<div class="card" id="structure">
+  <h2>Nesting, attributes &amp; repeats</h2>
+  <p>Structure lives in the <b>field name</b>, using three pieces of syntax:</p>
+  <table>
+    <tr><th>Syntax</th><th>Meaning</th><th>XML output</th></tr>
+    <tr><td><code>address.city</code></td><td>dots nest elements</td><td><code>&lt;address&gt;&lt;city&gt;&hellip;&lt;/city&gt;&lt;/address&gt;</code></td></tr>
+    <tr><td><code>order.@id</code></td><td><code>@</code> on the last part makes an XML attribute</td><td><code>&lt;order id="&hellip;"&gt;</code></td></tr>
+    <tr><td><code>friend[3]</code></td><td>repeat exactly 3&times;</td><td>three <code>&lt;friend&gt;</code> elements</td></tr>
+    <tr><td><code>item[2-5]</code></td><td>repeat a random 2&ndash;5&times; per record</td><td>2&ndash;5 <code>&lt;item&gt;</code> elements</td></tr>
+  </table>
+  <p><b>Shared counts:</b> sibling fields under the same repeating segment share one count per record, so the parts of
+  each repeated element line up. These two fields always produce the same number of orders:</p>
+  <pre><code>orders.order[1-3].sku
+orders.order[1-3].qty</code></pre>
+  <p>In JSON that becomes:</p>
+  <pre><code>"orders": { "order": [
+  { "sku": "978-1-56619-909-4", "qty": 2 },
+  { "sku": "978-0-7645-7682-9", "qty": 7 }
+] }</code></pre>
+  <p class="dim">One repeating segment per field path. In CSV, nested names become the column header and repeated
+  values are joined with <code>|</code>.</p>
+</div>
+
+<div class="card" id="formulas">
+  <h2>Formulas (JS)</h2>
+  <p>A <b>Formula (JS)</b> field is a JavaScript expression evaluated per record, <em>after</em> all other fields —
+  so it can read them. Formulas run in field order, so a formula can also reference an earlier formula.</p>
+  <table>
+    <tr><th>Name</th><th>What it gives you</th></tr>
+    <tr><td><code>field('name')</code></td><td>the value of another field (at the current repeat index, if repeated)</td></tr>
+    <tr><td><code>fields('name')</code></td><td>the full array for a repeated field</td></tr>
+    <tr><td><code>i</code></td><td>the current repeat index (0-based) when the formula field itself repeats</td></tr>
+    <tr><td><code>row</code></td><td>the whole record so far, keyed by field name</td></tr>
+    <tr><td><code>normalize(s)</code></td><td>lowercase, strip everything but letters and digits</td></tr>
+    <tr><td><code>concat(a, b, &hellip;)</code></td><td>join values into one string</td></tr>
+    <tr><td><code>pad(v, len, ch?)</code></td><td>left-pad to a length, <code>'0'</code> by default</td></tr>
+    <tr><td><code>rand(min, max)</code></td><td>random integer, inclusive — uses the seed</td></tr>
+  </table>
+  <p class="dim">Any plain JavaScript works too: string methods, <code>Math</code>, ternaries, template literals.
+  Formulas run in your own browser on data generated in the page — still, only paste expressions you trust.</p>
+</div>
+
+<div class="card" id="recipes">
+  <h2>Formula recipes</h2>
+  <p>Copy these into a <b>Formula (JS)</b> field's expression box. They assume fields named
+  <code>first_name</code>, <code>last_name</code>, etc. — change the names to match your schema.</p>
+
+  <h3>Combining fields</h3>
+  <pre><code><span class="cm">// username: lenora.kuhlman</span>
+(field('first_name') + '.' + field('last_name')).toLowerCase()
+
+<span class="cm">// full name with a middle initial</span>
+field('first_name') + ' ' + field('middle')[0] + '. ' + field('last_name')
+
+<span class="cm">// normalize: lenorakuhlman (lowercase, letters and digits only)</span>
+normalize(field('first_name') + field('last_name'))</code></pre>
+
+  <h3>Changing case &amp; shape</h3>
+  <pre><code><span class="cm">// UPPERCASE</span>
+field('city').toUpperCase()
+
+<span class="cm">// lowercase</span>
+field('city').toLowerCase()
+
+<span class="cm">// Capitalize Each Word</span>
+field('city').replace(/(^|\s)\S/g, c =&gt; c.toUpperCase())
+
+<span class="cm">// slug: port-angeles</span>
+field('city').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+<span class="cm">// initials: LK</span>
+(field('first_name')[0] + field('last_name')[0]).toUpperCase()
+
+<span class="cm">// trim whitespace</span>
+field('notes').trim()</code></pre>
+
+  <h3>IDs &amp; codes</h3>
+  <pre><code><span class="cm">// padded code: CUST-000042 (uses a Row Number field named id)</span>
+'CUST-' + pad(field('id'), 6)
+
+<span class="cm">// random SKU: SKU-387</span>
+'SKU-' + pad(rand(1, 999), 3)
+
+<span class="cm">// numbered repeats: ITEM-1, ITEM-2, &hellip; (in a repeating field)</span>
+'ITEM-' + (i + 1)</code></pre>
+
+  <h3>Numbers &amp; conditions</h3>
+  <pre><code><span class="cm">// price with 2 decimals: 214.55</span>
+rand(2000, 40000) / 100
+
+<span class="cm">// conditional label</span>
+field('qty') &gt; 5 ? 'bulk' : 'single'
+
+<span class="cm">// sum a repeated field (use the sibling's full field name)</span>
+fields('orders.order[1-3].qty').reduce((a, b) =&gt; a + b, 0)
+
+<span class="cm">// weighted choice: ~80% active</span>
+rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
+</div>
+
+<div class="card" id="seeds">
+  <h2>Seeds &amp; reproducibility</h2>
+  <p>Leave <b>seed</b> empty for different data on every run. Set a seed and the same schema + seed produces
+  byte-identical output, every time, on any machine — useful for repeatable test suites. The preview shows which
+  seed was used, so you can pin a result you like.</p>
+</div>
+
+<div class="card" id="schemas">
+  <h2>Schema files</h2>
+  <p><b>Export schema</b> saves your setup as JSON; <b>Import schema</b> loads it back. Keep one file per data model.</p>
+  <pre><code>{
+  <span class="kv">"root"</span>: "records",          <span class="cm">// XML root element</span>
+  <span class="kv">"record"</span>: "record",         <span class="cm">// XML per-row element</span>
+  <span class="kv">"fields"</span>: [
+    { "name": "first_name", "type": "First Name", "opts": {} },
+    { "name": "iban", "type": "Faker (any)", "opts": { "method": "finance.iban" } },
+    { "name": "username", "type": "Formula (JS)",
+      "opts": { "expr": "(field('first_name')).toLowerCase()" } }
+  ]
+}</code></pre>
+  <p class="dim">Limits: 10,000 rows per download (a browser-memory guardrail) and one repeating segment per field path.</p>
+</div>
+
+</main>
+</body>
+</html>

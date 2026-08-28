@@ -1,4 +1,4 @@
-# Test Data Forge
+# Test Data Generator
 
 A zero-dependency, browser-based test data generator. Define a schema (or import one), add field logic with JavaScript formulas, and generate nested XML, JSON, or CSV — powered by the modern [@faker-js/faker](https://fakerjs.dev) library.
 
@@ -6,7 +6,7 @@ Everything runs client-side. No server, no build step, no accounts, and no data 
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `faker.iife.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `docs.html`, `faker.iife.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
@@ -48,13 +48,13 @@ Export/import uses this JSON shape:
 
 Keep one schema file per data model and import whichever you need.
 
-## Building structure without syntax
+## Using the app
 
-Every field row has a **structure** button that opens a small builder: name the field, pick what it nests under, mark it as an XML attribute, and set repeats (exactly N, or a random range, applied to the group or the field). It writes the path syntax below for you, and the row shows badges for nesting, repeats and attributes.
+Each field is a card: name on top, type picker right below (click it and type to search), and options underneath. Cards can be dragged to reorder and duplicated in one click, and each shows a live sample value. The preview updates as you edit (Ctrl/Cmd+Enter refreshes on demand) and has a copy button.
 
-Fields can also be **dragged to reorder**, duplicated in one click, and every row shows a live sample value. The preview updates as you edit (Ctrl/Cmd+Enter refreshes it on demand) and has a copy button.
+The full guide — every field type, structure syntax, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
 
-## Field naming (the syntax the builder writes)
+## Field naming
 
 | Syntax | Meaning | Output |
 |---|---|---|
@@ -68,8 +68,7 @@ Fields can also be **dragged to reorder**, duplicated in one click, and every ro
 - **Built-ins:** names, email, phone, address parts, company, job title, UUID, boolean, number (min/max/decimals), date (range + format), custom list, static value, lorem words
 - **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.username`, `commerce.productName`, `git.commitSha`, etc. Click the method box and type to search: the field autocompletes against every method the loaded Faker build exposes (244 across 26 modules), so you don't need to know a path in advance. The catalog is read from Faker itself at page load, and methods that require arguments are left out because this tool calls them with none. See [fakerjs.dev/api](https://fakerjs.dev/api/) for what each one returns.
 
-  The type dropdown lists all of it: the built-ins first, then every Faker method grouped by module (`faker · finance`, `faker · vehicle`, …). Picking one is the same as choosing **Faker (any)** and typing that path by hand, so schemas exported before and after this change stay compatible.
-- **Combine / Transform:** build derived fields without writing code — pick source fields, a separator, and stack steps in order: `lowercase`, `UPPERCASE`, `Capitalize`, `normalize`, `slug`, `trim`, `initials`, plus prefix/suffix. E.g. `first_name + last_name → lowercase` joined with `.` gives `lenora.kuhlman`.
+  The type picker lists all of it: click it and type to search the built-ins plus every Faker method, grouped by module. Picking a method is the same as choosing **Faker (any)** with that path, so schemas stay compatible either way.
 - **Formula (JS):** JavaScript expression with access to other fields:
   - `field('name')` — value of another field (current repeat index if repeated)
   - `fields('name')` — full array for repeated fields
