@@ -306,6 +306,10 @@ rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
 <div class="card" id="schemas">
   <h2>Schema files</h2>
   <p><b>Export schema</b> saves your setup as JSON; <b>Import schema</b> loads it back. Keep one file per data model.</p>
+  <p><b>Share link</b> puts the whole setup — entities, fields, dup and similarity settings, seed and format — into the
+  page URL itself (the part after <code>#</code>, which never leaves the browser) and copies it. Anyone opening the link
+  gets the exact same workspace. If a shared schema contains <b>Formula (JS)</b> fields — code written by whoever made
+  the link — the preview waits for you to review them and press <i>Refresh preview</i> before running anything.</p>
   <pre><code>{
   <span class="kv">"version"</span>: 2,
   <span class="kv">"entities"</span>: [

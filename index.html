@@ -159,6 +159,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   </div>
   <div class="hdr-tools">
     <a class="doclink" href="./docs.html">Docs</a>
+    <button id="btn-share" class="ghost" title="Copy a URL that opens this exact schema and settings">Share link</button>
     <button id="btn-import" class="ghost">Import schema</button>
     <button id="btn-export" class="ghost">Export schema</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
@@ -1080,6 +1081,8 @@ function xescView(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace
 const $status=$("status");
 let _stHold=0;
 function setStatus(msg,cls,holdMs){
+  /* an un-held, non-error message never replaces a message still on hold */
+  if(!holdMs&&cls!=="err"&&Date.now()<_stHold) return;
   $status.textContent=msg;$status.className="status"+(cls?" "+cls:"");
   _stHold=holdMs?Date.now()+holdMs:0;
 }
@@ -1096,10 +1099,16 @@ function saveBlob(out,mime,filename){
   a.href=URL.createObjectURL(blob);a.download=filename;a.click();
   URL.revokeObjectURL(a.href);
 }
-let _schedT=null;
+let _schedT=null, _skipNext=false;
 function schedule(){clearTimeout(_schedT);_schedT=setTimeout(refresh,450);}
 function refresh(){
   clearTimeout(_schedT);
+  if(_skipNext){
+    _skipNext=false;
+    $("preview").textContent="Schema loaded from a shared link. It contains Formula (JS) fields — code written by whoever made the link. Review them, then press Refresh preview.";
+    $("prev-count").textContent="";
+    return;
+  }
   if(!fields.length){
     $("preview").textContent="Add a field to see a live preview.";
     $("prev-count").textContent="";
@@ -1154,13 +1163,13 @@ function refresh(){
 }
 
 /* ---------- Toolbar / actions ---------- */
+function setFmt(v){
+  fmt=v;
+  $("fmt-seg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.fmt===v));
+  $("xml-names").style.display=v==="xml"?"flex":"none";
+}
 $("fmt-seg").querySelectorAll("button").forEach(b=>{
-  b.addEventListener("click",()=>{
-    fmt=b.dataset.fmt;
-    $("fmt-seg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
-    $("xml-names").style.display=fmt==="xml"?"flex":"none";
-    refresh();
-  });
+  b.addEventListener("click",()=>{setFmt(b.dataset.fmt);refresh();});
 });
 $("seed").addEventListener("input",schedule);
 $("dupLevel").addEventListener("change",e=>{curEnt().dupLevel=e.target.value;syncDupVis();render();});
@@ -1219,14 +1228,73 @@ $("btn-example").addEventListener("click",()=>{
   entities=[acc,con]; activeEnt=1; fields=curEnt().fields; syncToolbar();
   render();setStatus("Example loaded — Contacts pick their account_id from generated Account ids.","ok");
 });
+function schemaObj(){
+  return {version:2, seed:$("seed").value||undefined, format:fmt, active:activeEnt,
+    entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
+      fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{}))}))};
+}
+/* ---------- Share by URL: schema lives in the fragment, never sent anywhere ---------- */
+function b64u(u8){let x="";for(const b of u8)x+=String.fromCharCode(b);return btoa(x).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
+function b64uDec(x){x=x.replace(/-/g,"+").replace(/_/g,"/");while(x.length%4)x+="=";const bin=atob(x);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+async function encodeShare(obj){
+  const json=JSON.stringify(obj);
+  try{
+    const buf=await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
+    return "z"+b64u(new Uint8Array(buf));
+  }catch(e){ return "j"+b64u(new TextEncoder().encode(json)); }
+}
+async function decodeShare(str){
+  const data=b64uDec(str.slice(1));
+  if(str[0]==="z"){
+    const buf=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+    return JSON.parse(new TextDecoder().decode(buf));
+  }
+  return JSON.parse(new TextDecoder().decode(data));
+}
+$("btn-share").addEventListener("click",async()=>{
+  try{
+    const enc=await encodeShare(schemaObj());
+    history.replaceState(null,"","#s="+enc);
+    const url=location.href;
+    let copied=false;
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      copied=await navigator.clipboard.writeText(url).then(()=>true,()=>false);
+    }
+    setStatus(copied?"Share link copied — opening it restores this exact schema and settings."
+                    :"Share link is in the address bar — copy it from there.","ok",6000);
+  }catch(e){setStatus("Could not build share link: "+e.message,"err",6000);}
+});
 $("btn-export").addEventListener("click",()=>{
-  const schema={version:2,entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
-    fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{}))}))};
+  const schema=schemaObj();
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
   URL.revokeObjectURL(a.href);
   setStatus("Schema exported.","ok",4000);
 });
+function mkFields(list){
+  return list.map(f=>{
+    const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
+    const nf=newField(f.name||"field",type,f.opts||{});
+    if(f.sim&&["jw","lev"].includes(f.sim.algo)) nf.sim={algo:f.sim.algo,target:String(f.sim.target??"0.90")};
+    return nf;
+  });
+}
+function applySchema(data){
+  entities=data.entities.map(e=>{
+    const en=newEntity(e.name);
+    en.rows=String(e.rows??"100"); en.root=e.root||"records"; en.record=e.record||"record";
+    en.dupLevel=["light","medium","heavy","targeted"].includes(e.dupLevel)?e.dupLevel:"off";
+    en.dupPct=String(e.dupPct??"20"); en.dupMax=String(e.dupMax??"2");
+    en.fields=mkFields(Array.isArray(e.fields)?e.fields:[]);
+    return en;
+  });
+  if(!entities.length) entities=[newEntity("Records")];
+  if(data.seed!==undefined&&data.seed!==null&&data.seed!=="") $("seed").value=data.seed;
+  if(["xml","json","csv"].includes(data.format)) setFmt(data.format);
+  activeEnt=Math.min(Math.max(parseInt(data.active)||0,0),entities.length-1);
+  fields=curEnt().fields; syncToolbar();
+  render();
+}
 $("btn-import").addEventListener("click",()=>$("file-import").click());
 $("file-import").addEventListener("change",e=>{
   const file=e.target.files[0];if(!file)return;
@@ -1234,24 +1302,9 @@ $("file-import").addEventListener("change",e=>{
   rd.onload=()=>{
     try{
       const data=JSON.parse(rd.result);
-      const mkFields=list=>list.map(f=>{
-        const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
-        const nf=newField(f.name||"field",type,f.opts||{});
-        if(f.sim&&["jw","lev"].includes(f.sim.algo)) nf.sim={algo:f.sim.algo,target:String(f.sim.target??"0.90")};
-        return nf;
-      });
       if(Array.isArray(data.entities)){                     // v2: multi-entity
-        entities=data.entities.map(e=>{
-          const en=newEntity(e.name);
-          en.rows=String(e.rows??"100"); en.root=e.root||"records"; en.record=e.record||"record";
-          en.dupLevel=["light","medium","heavy","targeted"].includes(e.dupLevel)?e.dupLevel:"off";
-          en.dupPct=String(e.dupPct??"20"); en.dupMax=String(e.dupMax??"2");
-          en.fields=mkFields(Array.isArray(e.fields)?e.fields:[]);
-          return en;
-        });
-        if(!entities.length) entities=[newEntity("Records")];
-        activeEnt=0; fields=curEnt().fields; syncToolbar();
-        render();setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok",4000);
+        applySchema(data);
+        setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok",4000);
       }else{                                               // v1: the file is the whole schema
         const list=Array.isArray(data)?data:data.fields;
         if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields — use a file saved by 'Export schema'");
@@ -1279,11 +1332,23 @@ if(FAKER_METHODS.length){
   document.body.appendChild(dl);
 }
 $("type-q").placeholder="Search "+(TYPE_NAMES.length+FAKER_METHODS.length)+" types…";
-$("xml-names").style.display="none";
-document.querySelector('#fmt-seg [data-fmt=json]').classList.add("on");
+setFmt("json");
 if(!HAS_FAKER) setStatus("Faker not loaded — using built-in sample pools. See README to vendor faker.js locally.","err");
 entities=[newEntity("Records")]; fields=curEnt().fields; syncToolbar();
-$("btn-example").click();
+let bootedFromLink=false;
+if(location.hash.startsWith("#s=")){
+  try{
+    const data=await decodeShare(location.hash.slice(3));
+    if(Array.isArray(data.entities)){
+      if(data.entities.some(e=>(e.fields||[]).some(f=>f.type==="Formula (JS)"))) _skipNext=true;
+      applySchema(data);
+      bootedFromLink=true;
+      setStatus(_skipNext?"Loaded from link — review its JS formulas, then press Refresh preview."
+                         :"Schema loaded from link.","ok",6000);
+    }
+  }catch(e){setStatus("Couldn't read the schema in this link: "+e.message,"err",8000);}
+}
+if(!bootedFromLink) $("btn-example").click();
 refresh();
 </script>
 </body>
