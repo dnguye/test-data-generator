@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Data Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --paper:#ECF1F7;
+  --panel:#FFFFFF;
+  --ink:#14213D;
+  --muted:#5A6B87;
+  --line:#C9D4E3;
+  --accent:#2450F5;
+  --accent-soft:#E4EAFE;
+  --ok:#0E7C5B;
+  --warn:#B4540A;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --body:'Inter',system-ui,sans-serif;
+  --display:'Archivo',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body);color:var(--ink);background:var(--paper);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size:28px 28px;
+  background-position:-1px -1px;
+  min-height:100vh;
+}
+header{
+  padding:22px 20px 18px;border-bottom:2px solid var(--ink);
+  background:var(--panel);
+}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;max-width:1200px;margin:0 auto}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.3rem,3.5vw,1.7rem);letter-spacing:-.02em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.tagline{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.02em}
+main{max-width:1200px;margin:0 auto;padding:18px 16px 60px;display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+@media(max-width:880px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 0 rgba(20,33,61,.06)}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-h h2{font-family:var(--display);font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.panel-h .tools{display:flex;gap:6px;flex-wrap:wrap}
+button{
+  font-family:var(--body);font-size:.78rem;font-weight:600;color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:7px 11px;cursor:pointer;transition:background .12s;
+}
+button:hover{background:var(--accent-soft)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{background:#1a3fd0}
+button.ghost{border-color:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--ink);background:var(--accent-soft)}
+.fields{padding:8px}
+.field-row{
+  display:grid;grid-template-columns:22px minmax(120px,1.1fr) minmax(110px,.9fr) minmax(140px,1.2fr) 30px;
+  gap:8px;align-items:start;padding:8px 6px;border-bottom:1px dashed var(--line);
+}
+.field-row:last-child{border-bottom:0}
+@media(max-width:640px){
+  .field-row{grid-template-columns:22px 1fr 30px;grid-auto-rows:auto}
+  .field-row .cell-type,.field-row .cell-opts{grid-column:2/3}
+}
+.mv{display:flex;flex-direction:column;gap:2px;padding-top:4px}
+.mv button{padding:0 4px;font-size:.6rem;line-height:1.3;border-color:transparent;color:var(--muted)}
+.mv button:hover{color:var(--accent);background:transparent}
+input[type=text],input[type=number],select,textarea{
+  width:100%;font-family:var(--mono);font-size:.76rem;color:var(--ink);
+  background:#FAFCFF;border:1px solid var(--line);border-radius:5px;padding:7px 8px;
+}
+textarea{resize:vertical;min-height:34px}
+select{font-family:var(--body)}
+.cell-opts .hint{font-size:.65rem;color:var(--muted);margin-top:3px;line-height:1.35}
+.sample{
+  font-family:var(--mono);font-size:.68rem;color:var(--accent);
+  background:var(--accent-soft);border-radius:4px;padding:2px 6px;margin-top:5px;
+  display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.del{border-color:transparent;color:var(--muted);font-size:.9rem;padding:4px 6px}
+.del:hover{color:#B00020;background:#FDEBEE}
+.settings{display:flex;flex-direction:column;gap:12px;padding:14px}
+.settings label{font-size:.72rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.settings .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;flex-direction:column;gap:8px;padding:0 14px 14px}
+.actions button{width:100%;padding:10px}
+#preview-panel{grid-column:1/-1}
+pre{
+  font-family:var(--mono);font-size:.74rem;line-height:1.55;
+  padding:14px;overflow:auto;max-height:420px;white-space:pre;
+}
+.tag{color:#1F5FBF}.attr{color:#8A4B08}.val{color:var(--ink)}.str{color:#0E7C5B}.num{color:#8A4B08}.key{color:#1F5FBF}
+.note{font-family:var(--mono);font-size:.68rem;color:var(--muted);padding:10px 14px;border-top:1px solid var(--line)}
+.status{font-family:var(--mono);font-size:.7rem;padding:8px 14px;color:var(--muted)}
+.status.err{color:#B00020}
+.status.ok{color:var(--ok)}
+.helpbox{font-size:.72rem;line-height:1.5;color:var(--muted);padding:12px 14px;border-top:1px solid var(--line)}
+.helpbox code{font-family:var(--mono);font-size:.68rem;background:var(--accent-soft);border-radius:3px;padding:1px 4px;color:var(--ink)}
+.helpbox b{color:var(--ink)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Test&nbsp;Data&nbsp;<span>Forge</span></h1>
+    <div class="tagline">schema &rarr; faker &rarr; nested XML / JSON / CSV &middot; formulas can reference other fields</div>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="schema-panel">
+    <div class="panel-h">
+      <h2>Schema</h2>
+      <div class="tools">
+        <button id="btn-add" class="primary">+ Add field</button>
+        <button id="btn-example" class="ghost">Load example</button>
+        <button id="btn-import" class="ghost">Import schema</button>
+        <button id="btn-export" class="ghost">Export schema</button>
+        <input type="file" id="file-import" accept=".json,application/json" hidden>
+      </div>
+    </div>
+    <div class="fields" id="fields"></div>
+    <div class="helpbox">
+      <b>Field naming:</b> use dots to nest &mdash; <code>address.city</code> &rarr; <code>&lt;address&gt;&lt;city&gt;</code>.
+      Use <code>@</code> on the last part for an XML attribute &mdash; <code>order.@id</code>.
+      Use brackets to repeat &mdash; <code>friends.friend[3]</code> or a random range <code>item[2-5]</code>.<br>
+      <b>Formulas</b> are JavaScript. Reference other fields with <code>field('name')</code>. Helpers:
+      <code>normalize(s)</code> (lowercase, strip non-alphanumerics), <code>concat(a,b,...)</code>,
+      <code>pad(v,len)</code>, <code>rand(min,max)</code>, and <code>i</code> (repeat index).
+      Example: <code>normalize(field('name') + field('nick'))</code>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="settings">
+      <div>
+        <label for="rows">Rows</label>
+        <input type="number" id="rows" value="10" min="1" max="10000">
+      </div>
+      <div class="pair">
+        <div>
+          <label for="seed">Seed (optional)</label>
+          <input type="number" id="seed" placeholder="random">
+        </div>
+        <div>
+          <label for="format">Format</label>
+          <select id="format">
+            <option value="xml">XML</option>
+            <option value="json">JSON</option>
+            <option value="csv">CSV</option>
+          </select>
+        </div>
+      </div>
+      <div class="pair" id="xml-names">
+        <div>
+          <label for="rootEl">Root element</label>
+          <input type="text" id="rootEl" value="records">
+        </div>
+        <div>
+          <label for="recEl">Record element</label>
+          <input type="text" id="recEl" value="record">
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btn-preview" class="primary">Generate preview</button>
+      <button id="btn-download">Download file</button>
+    </div>
+    <div class="status" id="status">Ready.</div>
+  </aside>
+
+  <section class="panel" id="preview-panel">
+    <div class="panel-h"><h2>Preview <span id="prev-count" style="font-weight:400;color:var(--muted);text-transform:none"></span></h2></div>
+    <pre id="preview">Add fields, then press Generate preview.</pre>
+    <div class="note">Preview shows the first 5 records. Download produces the full row count. Names, addresses, etc. come from the Faker library (loaded locally in your browser) &mdash; no data leaves this page.</div>
+  </section>
+</main>
+
+<script src="./faker.iife.js"></script>
+<script type="module">
+"use strict";
+/* ---------- Modern Faker (v9): vendored bundle first, CDN fallback ---------- */
+let faker = null;
+let HAS_FAKER = false;
+if (typeof FakerLib !== "undefined" && FakerLib.faker) {
+  faker = FakerLib.faker; HAS_FAKER = true;          // works from file:// and any host
+} else {
+  try {
+    const m = await import("https://cdn.jsdelivr.net/npm/@faker-js/faker@9/+esm");
+    faker = m.faker; HAS_FAKER = true;               // fallback if faker.iife.js is missing
+  } catch (e) { /* built-in pools will be used */ }
+}
+/* ---------- RNG (seedable) ---------- */
+let _rng = Math.random;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function rnd(){return _rng()}
+function randint(min,max){return Math.floor(rnd()*(max-min+1))+min}
+function pick(arr){return arr[Math.floor(rnd()*arr.length)]}
+
+/* ---------- Fallback pools ---------- */
+const POOL = {
+  first:["Bob","Alice","Carlos","Dana","Elena","Frank","Grace","Hiro","Ivy","Jamal","Kira","Liam","Mona","Nia","Omar","Priya","Quinn","Rosa","Sam","Tara"],
+  last:["Smith","Johnson","Lee","Garcia","Brown","Nguyen","Patel","Kim","Lopez","Miller","Davis","Chen","Walker","Young","Ali","Silva","Hansen","Kaur","Ortiz","Reed"],
+  street:["Oak St","Maple Ave","Cedar Ln","Elm Dr","Pine Rd","Birch Blvd","Walnut Way","Spruce Ct","Ash Ter","Willow Pl"],
+  city:["Springfield","Riverton","Lakeside","Fairview","Greenville","Bristol","Clinton","Madison","Georgetown","Salem"],
+  state:["California","Texas","New York","Florida","Ohio","Georgia","Oregon","Nevada","Utah","Maine"],
+  stateAbbr:["CA","TX","NY","FL","OH","GA","OR","NV","UT","ME"],
+  country:["United States","Canada","Mexico","Germany","France","Japan","Brazil","India","Spain","Italy"],
+  company:["Acme Corp","Globex","Initech","Umbra Labs","Vertex LLC","Nimbus Co","Quanta Group","Helix Inc","Orbit Systems","Zephyr Ltd"],
+  job:["Engineer","Analyst","Designer","Manager","Consultant","Developer","Technician","Director","Specialist","Coordinator"],
+  words:["alpha","bravo","delta","echo","kilo","lima","nova","orion","pixel","quartz","raven","sigma","talon","umbra","vector"]
+};
+function fk(path, fallback, args){
+  if(HAS_FAKER){
+    try{
+      const parts=path.split(".");let fn=faker;
+      for(const p of parts) fn=fn[p];
+      if(typeof fn==="function") return fn.apply(null, args||[]);
+    }catch(e){}
+  }
+  return fallback ? fallback() : "#unknown:"+path;
+}
+function uuid(){
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{
+    const r=Math.floor(rnd()*16), v=c==="x"?r:(r&0x3|0x8);return v.toString(16);
+  });
+}
+
+/* ---------- Field types ---------- */
+const TYPES = {
+  "Row Number":     {gen:(o,ctx)=>ctx.rowIndex+1},
+  "First Name":     {gen:()=>fk("person.firstName",()=>pick(POOL.first))},
+  "Last Name":      {gen:()=>fk("person.lastName",()=>pick(POOL.last))},
+  "Full Name":      {gen:()=>fk("person.fullName",()=>pick(POOL.first)+" "+pick(POOL.last))},
+  "Email":          {gen:()=>fk("internet.email",()=>pick(POOL.first).toLowerCase()+"."+pick(POOL.last).toLowerCase()+"@example.com")},
+  "Phone":          {gen:()=>fk("phone.number",()=>"("+randint(200,989)+") "+randint(200,989)+"-"+String(randint(0,9999)).padStart(4,"0"))},
+  "Street Address": {gen:()=>fk("location.streetAddress",()=>randint(10,9999)+" "+pick(POOL.street))},
+  "City":           {gen:()=>fk("location.city",()=>pick(POOL.city))},
+  "State":          {gen:()=>fk("location.state",()=>pick(POOL.state))},
+  "State Abbr":     {gen:()=>fk("location.state",()=>pick(POOL.stateAbbr),[{abbreviated:true}])},
+  "Zip Code":       {gen:()=>fk("location.zipCode",()=>String(randint(10000,99999)))},
+  "Country":        {gen:()=>fk("location.country",()=>pick(POOL.country))},
+  "Company":        {gen:()=>fk("company.name",()=>pick(POOL.company))},
+  "Job Title":      {gen:()=>fk("person.jobTitle",()=>pick(POOL.job))},
+  "Faker (any)":    {opts:{method:"commerce.productName"},
+                     gen:(o)=>fk((o.method||"").trim(),null)},
+  "UUID":           {gen:()=>uuid()},
+  "Boolean":        {gen:()=>rnd()<0.5},
+  "Number":         {opts:{min:"1",max:"100",decimals:"0"},
+                     gen:(o)=>{const min=parseFloat(o.min||0),max=parseFloat(o.max||100),d=parseInt(o.decimals||0);
+                       const v=min+rnd()*(max-min);return d>0?parseFloat(v.toFixed(d)):Math.round(v);}},
+  "Date":           {opts:{from:"2024-01-01",to:"2026-08-27",dateFormat:"YYYY-MM-DD"},
+                     gen:(o)=>{const a=Date.parse(o.from||"2024-01-01"),b=Date.parse(o.to||Date.now());
+                       const d=new Date(a+rnd()*(Math.max(b,a)-a));
+                       const p=n=>String(n).padStart(2,"0");
+                       const map={YYYY:d.getFullYear(),MM:p(d.getMonth()+1),DD:p(d.getDate()),HH:p(d.getHours()),mm:p(d.getMinutes()),ss:p(d.getSeconds())};
+                       return (o.dateFormat||"YYYY-MM-DD").replace(/YYYY|MM|DD|HH|mm|ss/g,m=>map[m]);}},
+  "Custom List":    {opts:{values:"red, green, blue"},
+                     gen:(o)=>{const vs=(o.values||"").split(",").map(s=>s.trim()).filter(Boolean);
+                       return vs.length?pick(vs):"";}},
+  "Static Value":   {opts:{value:"fixed"}, gen:(o)=>o.value??""},
+  "Lorem Words":    {opts:{count:"3"},
+                     gen:(o)=>{const n=parseInt(o.count||3);const out=[];for(let k=0;k<n;k++)out.push(pick(POOL.words));return out.join(" ");}},
+  "Formula (JS)":   {opts:{expr:"normalize(field('name') + field('nick'))"}, formula:true, gen:()=>""}
+};
+const TYPE_NAMES = Object.keys(TYPES);
+
+/* ---------- State ---------- */
+let fields = [];
+let fid = 0;
+function newField(name,type,opts){
+  const t = TYPES[type] || TYPES["First Name"];
+  return {id:++fid, name:name||"field_"+fid, type:type||"First Name", opts:Object.assign({},t.opts||{},opts||{})};
+}
+
+/* ---------- Name parsing ---------- */
+function parseName(name){
+  const segs = name.split(".").map(raw=>{
+    let key=raw, repeat=null, attr=false;
+    const m = key.match(/\[(\d+)(?:-(\d+))?\]$/);
+    if(m){repeat={min:parseInt(m[1]),max:m[2]?parseInt(m[2]):parseInt(m[1])};key=key.slice(0,m.index);}
+    if(key.startsWith("@")){attr=true;key=key.slice(1);}
+    return {key,repeat,attr};
+  });
+  return segs;
+}
+function repeatPrefix(segs){
+  const idx = segs.findIndex(s=>s.repeat);
+  if(idx<0) return null;
+  return {idx, path:segs.slice(0,idx+1).map(s=>s.key).join("."), spec:segs[idx].repeat};
+}
+
+/* ---------- Formula helpers ---------- */
+const HELPERS = {
+  normalize:s=>String(s??"").toLowerCase().replace(/[^a-z0-9]/g,""),
+  concat:(...a)=>a.join(""),
+  pad:(v,len,ch)=>String(v??"").padStart(len,ch||"0"),
+  rand:(min,max)=>randint(min,max)
+};
+function evalFormula(expr, flat, i){
+  const field = (n)=>{const v=flat[n];return Array.isArray(v)?(v[i!==undefined?i:0] ?? v[0]):v;};
+  const fieldsFn = (n)=>{const v=flat[n];return Array.isArray(v)?v:[v];};
+  const f = new Function("field","fields","normalize","concat","pad","rand","i","row",
+    '"use strict"; return ('+expr+');');
+  return f(field, fieldsFn, HELPERS.normalize, HELPERS.concat, HELPERS.pad, HELPERS.rand, i??0, flat);
+}
+
+/* ---------- Generation ---------- */
+function generateRows(n){
+  const seedIn = document.getElementById("seed").value;
+  const seed = seedIn===""?Math.floor(Math.random()*1e9):parseInt(seedIn);
+  _rng = mulberry32(seed);
+  if(HAS_FAKER && faker.seed) try{faker.seed(seed);}catch(e){}
+  const rows=[];
+  const parsed = fields.map(f=>({f, segs:parseName(f.name.trim()), rp:null}));
+  parsed.forEach(p=>p.rp=repeatPrefix(p.segs));
+  const errors=[];
+  for(let r=0;r<n;r++){
+    const flat={};        // fieldName -> value | array
+    const counts={};      // repeatPath -> count for this row
+    const ctx={rowIndex:r};
+    // pass 1: non-formula
+    for(const p of parsed){
+      const t=TYPES[p.f.type]; if(!t||t.formula) continue;
+      if(p.rp){
+        const c = counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max));
+        const arr=[]; for(let k=0;k<c;k++) arr.push(t.gen(p.f.opts,ctx));
+        flat[p.f.name]=arr;
+      }else{
+        flat[p.f.name]=t.gen(p.f.opts,ctx);
+      }
+    }
+    // pass 2: formulas (in field order; can reference earlier formulas)
+    for(const p of parsed){
+      const t=TYPES[p.f.type]; if(!t||!t.formula) continue;
+      const expr=p.f.opts.expr||'""';
+      try{
+        if(p.rp){
+          const c = counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max));
+          const arr=[]; for(let k=0;k<c;k++) arr.push(evalFormula(expr,flat,k));
+          flat[p.f.name]=arr;
+        }else{
+          flat[p.f.name]=evalFormula(expr,flat,undefined);
+        }
+      }catch(e){
+        flat[p.f.name]="#ERR";
+        if(errors.length<3) errors.push(p.f.name+": "+e.message);
+      }
+    }
+    rows.push({flat,parsed});
+  }
+  return {rows,errors,seed};
+}
+
+/* ---------- Nesting ---------- */
+function buildTree(row){
+  // node: {children:{}, attrs:{}, values:[], arrays:{key:[node,...]}}
+  const mk=()=>({children:{},attrs:{},value:undefined,arrays:{}});
+  const root=mk();
+  for(const p of row.parsed){
+    const v=row.flat[p.f.name];
+    insert(root,p.segs,0,v);
+  }
+  function insert(node,segs,si,val){
+    const s=segs[si], last=si===segs.length-1;
+    if(s.repeat){
+      const arr=Array.isArray(val)?val:[val];
+      if(!node.arrays[s.key]) node.arrays[s.key]=arr.map(()=>mk());
+      const nodes=node.arrays[s.key];
+      while(nodes.length<arr.length) nodes.push(mk());
+      arr.forEach((v,k)=>{
+        if(last){nodes[k].value=v;}
+        else insert(nodes[k],segs,si+1,v);
+      });
+      return;
+    }
+    if(last){
+      if(s.attr) node.attrs[s.key]=val;
+      else{
+        if(!node.children[s.key]) node.children[s.key]=mk();
+        node.children[s.key].value=val;
+      }
+      return;
+    }
+    if(!node.children[s.key]) node.children[s.key]=mk();
+    insert(node.children[s.key],segs,si+1,val);
+  }
+  return root;
+}
+
+/* ---------- Serializers ---------- */
+function xesc(s){return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function nodeToXml(name,node,ind){
+  const pad="  ".repeat(ind);
+  let attrs=Object.entries(node.attrs).map(([k,v])=>` ${k}="${xesc(v)}"`).join("");
+  const kids=[];
+  for(const [k,ch] of Object.entries(node.children)) kids.push(nodeToXml(k,ch,ind+1));
+  for(const [k,arr] of Object.entries(node.arrays)) arr.forEach(ch=>kids.push(nodeToXml(k,ch,ind+1)));
+  if(kids.length===0){
+    const v=node.value===undefined?"":xesc(node.value);
+    return `${pad}<${name}${attrs}>${v}</${name}>`;
+  }
+  const inner=node.value!==undefined?("  ".repeat(ind+1)+xesc(node.value)+"\n"):"";
+  return `${pad}<${name}${attrs}>\n${inner}${kids.join("\n")}\n${pad}</${name}>`;
+}
+function toXml(rows,rootEl,recEl){
+  const body=rows.map(r=>nodeToXml(recEl,buildTree(r),1)).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<${rootEl}>\n${body}\n</${rootEl}>`;
+}
+function nodeToObj(node){
+  const hasKids=Object.keys(node.children).length||Object.keys(node.arrays).length||Object.keys(node.attrs).length;
+  if(!hasKids) return node.value===undefined?null:node.value;
+  const o={};
+  for(const [k,v] of Object.entries(node.attrs)) o[k]=v;
+  for(const [k,ch] of Object.entries(node.children)) o[k]=nodeToObj(ch);
+  for(const [k,arr] of Object.entries(node.arrays)) o[k]=arr.map(nodeToObj);
+  if(node.value!==undefined) o._value=node.value;
+  return o;
+}
+function toJson(rows){return JSON.stringify(rows.map(r=>nodeToObj(buildTree(r))),null,2);}
+function toCsv(rows){
+  if(!rows.length) return "";
+  const headers=rows[0].parsed.map(p=>p.f.name);
+  const esc=v=>{const s=Array.isArray(v)?v.join("|"):String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const lines=[headers.map(esc).join(",")];
+  for(const r of rows) lines.push(headers.map(h=>esc(r.flat[h])).join(","));
+  return lines.join("\n");
+}
+
+/* ---------- UI ---------- */
+const $fields=document.getElementById("fields");
+function optsUI(f){
+  const t=TYPES[f.type];
+  if(!t.opts) return "";
+  return Object.keys(t.opts).map(k=>{
+    const val=f.opts[k]??t.opts[k];
+    if(k==="expr"||k==="values") return `<textarea data-opt="${k}" rows="2" aria-label="${k}">${val}</textarea>`;
+    return `<input type="text" data-opt="${k}" value="${String(val).replace(/"/g,"&quot;")}" placeholder="${k}" aria-label="${k}">`;
+  }).join("");
+}
+function optHint(f){
+  if(f.type==="Formula (JS)") return "JS expression \u00b7 field('name')";
+  if(f.type==="Faker (any)") return "any method path \u00b7 e.g. finance.iban, vehicle.vin, commerce.productName";
+  if(f.type==="Custom List") return "comma-separated values";
+  if(f.type==="Number") return "min \u00b7 max \u00b7 decimals";
+  if(f.type==="Date") return "from \u00b7 to \u00b7 format";
+  return "";
+}
+function render(){
+  $fields.innerHTML="";
+  fields.forEach((f,idx)=>{
+    const row=document.createElement("div");
+    row.className="field-row";
+    row.innerHTML=`
+      <div class="mv">
+        <button data-act="up" title="Move up" aria-label="Move up">&#9650;</button>
+        <button data-act="down" title="Move down" aria-label="Move down">&#9660;</button>
+      </div>
+      <div class="cell-name">
+        <input type="text" data-k="name" value="${f.name.replace(/"/g,"&quot;")}" aria-label="Field name">
+        <span class="sample" data-sample>&nbsp;</span>
+      </div>
+      <div class="cell-type">
+        <select data-k="type" aria-label="Field type">${TYPE_NAMES.map(t=>`<option${t===f.type?" selected":""}>${t}</option>`).join("")}</select>
+      </div>
+      <div class="cell-opts">${optsUI(f)}<div class="hint">${optHint(f)}</div></div>
+      <button class="del" data-act="del" title="Remove field" aria-label="Remove field">&#10005;</button>`;
+    row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;debSample();});
+    row.querySelector('[data-k=type]').addEventListener("change",e=>{
+      f.type=e.target.value;f.opts=Object.assign({},TYPES[f.type].opts||{});render();
+    });
+    row.querySelectorAll("[data-opt]").forEach(el=>{
+      el.addEventListener("input",e=>{f.opts[e.target.dataset.opt]=e.target.value;debSample();});
+    });
+    row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);render();});
+    row.querySelector('[data-act=up]').addEventListener("click",()=>{if(idx>0){[fields[idx-1],fields[idx]]=[fields[idx],fields[idx-1]];render();}});
+    row.querySelector('[data-act=down]').addEventListener("click",()=>{if(idx<fields.length-1){[fields[idx+1],fields[idx]]=[fields[idx],fields[idx+1]];render();}});
+    $fields.appendChild(row);
+  });
+  updateSamples();
+}
+let _debT=null;
+function debSample(){clearTimeout(_debT);_debT=setTimeout(updateSamples,350);}
+function updateSamples(){
+  if(!fields.length) return;
+  try{
+    const {rows}=generateRows(1);
+    const flat=rows[0].flat;
+    document.querySelectorAll(".field-row").forEach((el,i)=>{
+      const f=fields[i]; if(!f) return;
+      let v=flat[f.name];
+      if(Array.isArray(v)) v="["+v.slice(0,3).join(", ")+(v.length>3?", \u2026":"")+"]";
+      el.querySelector("[data-sample]").textContent=v===undefined?"\u00a0":String(v);
+    });
+  }catch(e){}
+}
+
+/* ---------- Highlighting ---------- */
+function hlXml(src){
+  return xescView(src)
+    .replace(/(&lt;\/?)([\w.-]+)/g,'$1<span class="tag">$2</span>')
+    .replace(/([\w-]+)=(&quot;.*?&quot;)/g,'<span class="attr">$1</span>=<span class="str">$2</span>');
+}
+function hlJson(src){
+  return xescView(src)
+    .replace(/(&quot;[\w.\u0040-]+&quot;)(\s*:)/g,'<span class="key">$1</span>$2')
+    .replace(/:\s*(&quot;.*?&quot;)/g,': <span class="str">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g,': <span class="num">$1</span>');
+}
+function xescView(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+/* ---------- Actions ---------- */
+const $status=document.getElementById("status");
+function setStatus(msg,cls){$status.textContent=msg;$status.className="status"+(cls?" "+cls:"");}
+function currentOutput(n){
+  const fmt=document.getElementById("format").value;
+  const {rows,errors,seed}=generateRows(n);
+  let out,mime,ext;
+  if(fmt==="xml"){out=toXml(rows,document.getElementById("rootEl").value||"records",document.getElementById("recEl").value||"record");mime="application/xml";ext="xml";}
+  else if(fmt==="json"){out=toJson(rows);mime="application/json";ext="json";}
+  else{out=toCsv(rows);mime="text/csv";ext="csv";}
+  return {out,mime,ext,errors,seed,fmt};
+}
+document.getElementById("btn-preview").addEventListener("click",()=>{
+  if(!fields.length){setStatus("Add at least one field first.","err");return;}
+  try{
+    const {out,errors,seed,fmt}=currentOutput(5);
+    const pre=document.getElementById("preview");
+    pre.innerHTML = fmt==="xml"?hlXml(out):fmt==="json"?hlJson(out):xescView(out);
+    document.getElementById("prev-count").textContent="\u00b7 5 records \u00b7 seed "+seed;
+    setStatus(errors.length?("Formula errors: "+errors.join(" | ")):"Preview generated.",errors.length?"err":"ok");
+  }catch(e){setStatus("Error: "+e.message,"err");}
+});
+document.getElementById("btn-download").addEventListener("click",()=>{
+  if(!fields.length){setStatus("Add at least one field first.","err");return;}
+  const n=Math.min(Math.max(parseInt(document.getElementById("rows").value)||10,1),10000);
+  try{
+    const {out,mime,ext,errors}=currentOutput(n);
+    const blob=new Blob([out],{type:mime});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download="test-data."+ext;a.click();
+    URL.revokeObjectURL(a.href);
+    setStatus(errors.length?("Downloaded with formula errors: "+errors.join(" | ")):("Downloaded "+n+" records."),errors.length?"err":"ok");
+  }catch(e){setStatus("Error: "+e.message,"err");}
+});
+document.getElementById("btn-add").addEventListener("click",()=>{fields.push(newField());render();});
+document.getElementById("btn-example").addEventListener("click",()=>{
+  fields=[
+    newField("name","First Name"),
+    newField("nick","Custom List",{values:"billy, bud, ace, champ, skip, buzz"}),
+    newField("combine.normalize","Formula (JS)",{expr:"normalize(field('name') + field('nick'))"}),
+    newField("address.city","City"),
+    newField("address.@state","State Abbr"),
+    newField("orders.order[1-3].sku","Formula (JS)",{expr:"'SKU-' + pad(rand(1,999),3)"}),
+    newField("orders.order[1-3].qty","Number",{min:"1",max:"10",decimals:"0"})
+  ];
+  render();setStatus("Example schema loaded \u2014 press Generate preview.","ok");
+});
+document.getElementById("btn-export").addEventListener("click",()=>{
+  const schema={root:document.getElementById("rootEl").value,record:document.getElementById("recEl").value,
+    fields:fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))};
+  const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus("Schema exported.","ok");
+});
+document.getElementById("btn-import").addEventListener("click",()=>document.getElementById("file-import").click());
+document.getElementById("file-import").addEventListener("change",e=>{
+  const file=e.target.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const data=JSON.parse(rd.result);
+      const list=Array.isArray(data)?data:data.fields;
+      if(!Array.isArray(list)) throw new Error("Expected {fields:[...]} or an array of fields");
+      fields=list.map(f=>{
+        const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
+        return newField(f.name||"field",type,f.opts||{});
+      });
+      if(data.root)document.getElementById("rootEl").value=data.root;
+      if(data.record)document.getElementById("recEl").value=data.record;
+      render();setStatus("Imported "+fields.length+" fields.","ok");
+    }catch(err){setStatus("Import failed: "+err.message,"err");}
+  };
+  rd.readAsText(file);
+  e.target.value="";
+});
+document.getElementById("format").addEventListener("change",e=>{
+  document.getElementById("xml-names").style.display=e.target.value==="xml"?"grid":"none";
+});
+
+/* ---------- Boot ---------- */
+if(!HAS_FAKER) setStatus("Faker not loaded (CDN blocked?) \u2014 using built-in sample pools. See README to vendor faker.js locally.","err");
+document.getElementById("btn-example").click();
+document.getElementById("btn-preview").click();
+</script>
+</body>
+</html>
