@@ -72,7 +72,7 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
     <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a>
-    <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a>
+    <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a><a href="#spec">Format spec</a>
   </div>
 </div>
 
@@ -324,9 +324,103 @@ rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
 }</code></pre>
   <p class="dim">Older single-entity schema files (<code>{"root", "record", "fields": [&hellip;]}</code>) still import
   — they load as one entity.</p>
-  <p class="dim">Authoring schemas programmatically (or asking an AI to convert an XSD)? The complete file-format
-  specification lives at <a href="https://github.com/dnguye/Test-data-generator/blob/main/SCHEMA.md" rel="noopener">SCHEMA.md</a>.</p>
+  <p class="dim">Authoring schemas programmatically, or asking an AI to convert an XSD? The complete
+  <a href="#spec">file-format specification</a> is below.</p>
   <p class="dim">Limits: 10,000 rows per download (a browser-memory guardrail) and one repeating segment per field path.</p>
+</div>
+
+
+<div class="card" id="spec">
+  <h2>Schema format specification</h2>
+  <p>This section fully specifies the import file, written so a person — or an AI given an XSD, sample XML, or a
+  plain description — can author an importable <code>schema.json</code> without ever seeing the app.
+  A copy ships in the repo as <a href="https://github.com/dnguye/Test-data-generator/blob/main/SCHEMA.md" rel="noopener">SCHEMA.md</a>.</p>
+
+  <h3>Prompt to hand an AI</h3>
+  <pre><code>Read the schema format specification below, then convert the following XML
+schema into an importable schema.json. Encode structure in the dotted
+field-path notation (@ for attributes, [min-max] for repetition), pick the
+closest semantic type for each element, and use Formula (JS) expressions
+for derived values. Type names must match the spec exactly.
+Output only the JSON.
+
+&lt;paste the specification, then your XSD&gt;</code></pre>
+
+  <h3>Top level</h3>
+  <pre><code>{
+  "version": 2,
+  "seed": "42",            <span class="cm">// optional; same seed &#8658; identical data</span>
+  "format": "xml",         <span class="cm">// optional; "xml" | "json" | "csv"</span>
+  "active": 0,             <span class="cm">// optional; entity tab to open</span>
+  "entities": [ ... ]      <span class="cm">// required; ORDER MATTERS</span>
+}</code></pre>
+  <p>Entities generate <b>in array order</b>. A <code>Reference</code> field may only point to an entity that
+  appears <em>earlier</em> in the array.</p>
+
+  <h3>Entity</h3>
+  <pre><code>{
+  "name": "Contacts",      <span class="cm">// unique; Reference fields address it by this</span>
+  "rows": "100",           <span class="cm">// base record count, 1..10000</span>
+  "root": "contacts",      <span class="cm">// XML only: root element</span>
+  "record": "contact",     <span class="cm">// XML only: per-record element</span>
+  "dupLevel": "off",       <span class="cm">// off | light | medium | heavy | targeted</span>
+  "dupPct": "20",          <span class="cm">// % of records that get duplicate variants</span>
+  "dupMax": "2",           <span class="cm">// max variants per duplicated record, 1..5</span>
+  "fields": [ ... ]
+}</code></pre>
+
+  <h3>Field</h3>
+  <pre><code>{ "name": "&lt;field path&gt;", "type": "&lt;type name&gt;", "opts": { ... } }
+
+<span class="cm">// only meaningful when the entity's dupLevel is "targeted":</span>
+"sim": { "algo": "jw", "target": "0.90" }   <span class="cm">// jw = Jaro-Winkler, lev = Levenshtein</span></code></pre>
+  <p>In targeted mode a variant's value for a <code>sim</code>-bearing field is fuzzed until its similarity to the
+  original lands as close as possible to <code>target</code> (0.5&ndash;1.0); fields without <code>sim</code> copy
+  unchanged. The field-path syntax (<code>address.city</code>, <code>order.@id</code>, <code>item[2-5]</code>, one
+  repeating segment per path, shared counts across siblings) is specified under
+  <a href="#structure">Nesting, attributes &amp; repeats</a>.</p>
+
+  <h3>Type names and their opts</h3>
+  <p>Type names must match <b>exactly</b> (case and spacing) — an unknown type silently falls back to
+  <code>First Name</code>. Omitted opts use defaults.</p>
+  <table>
+    <tr><th>type</th><th>opts</th><th>Generates</th></tr>
+    <tr><td>Row Number</td><td>&mdash;</td><td>1, 2, 3, &hellip;</td></tr>
+    <tr><td>First Name / Last Name / Full Name</td><td>&mdash;</td><td>person names</td></tr>
+    <tr><td>Email / Phone</td><td>&mdash;</td><td>contact fields</td></tr>
+    <tr><td>Street Address / City / State / State Abbr / Zip Code / Country</td><td>&mdash;</td><td>address parts</td></tr>
+    <tr><td>Company / Job Title</td><td>&mdash;</td><td>org fields</td></tr>
+    <tr><td>UUID</td><td>&mdash;</td><td>v4 UUID</td></tr>
+    <tr><td>Boolean</td><td>&mdash;</td><td>true / false</td></tr>
+    <tr><td>Number</td><td><code>{"min":"1","max":"100","decimals":"0"}</code></td><td>random number</td></tr>
+    <tr><td>Date</td><td><code>{"from":"2024-01-01","to":"2026-08-27","dateFormat":"YYYY-MM-DD"}</code></td><td>random date; tokens <code>YYYY MM DD HH mm ss</code></td></tr>
+    <tr><td>Custom List</td><td><code>{"values":"red, green, blue"}</code></td><td>one value from the list</td></tr>
+    <tr><td>Static Value</td><td><code>{"value":"fixed"}</code></td><td>same value every record</td></tr>
+    <tr><td>Lorem Words</td><td><code>{"count":"3"}</code></td><td>placeholder words</td></tr>
+    <tr><td>Faker (any)</td><td><code>{"method":"finance.iban"}</code></td><td>any no-argument @faker-js/faker v9 method by path</td></tr>
+    <tr><td>Reference</td><td><code>{"entity":"Accounts","field":"id","unique":""}</code></td><td>a value generated for an EARLIER entity; <code>"unique":"1"</code> = one-to-one</td></tr>
+    <tr><td>Formula (JS)</td><td><code>{"expr":"&lt;JS expression&gt;"}</code></td><td>computed per record &mdash; see <a href="#formulas">Formulas</a></td></tr>
+  </table>
+  <p class="dim"><code>expr</code> is a single JavaScript <em>expression</em> (not statements), with
+  <code>field()</code>, <code>fields()</code>, <code>i</code>, <code>row</code>, <code>normalize()</code>,
+  <code>concat()</code>, <code>pad()</code>, <code>rand()</code> in scope — full details under Formulas above.</p>
+
+  <h3>Mapping an XSD to this format</h3>
+  <ul>
+    <li>Each top-level repeating element type &#8594; one <b>entity</b> (<code>record</code> = the element name, <code>root</code> = its container).</li>
+    <li>Leaf <code>xs:element</code> &#8594; a field; nested complex types become dotted paths.</li>
+    <li><code>xs:attribute</code> &#8594; <code>@name</code> on the last path segment.</li>
+    <li><code>minOccurs</code>/<code>maxOccurs</code> &#8594; <code>[min-max]</code> on the repeating segment (<code>unbounded</code> &#8594; a sensible cap like <code>[1-5]</code>).</li>
+    <li><code>xs:string</code> &#8594; the closest semantic type (<code>First Name</code>, <code>City</code>, <code>Faker (any)</code>&hellip;); <code>xs:int</code>/<code>xs:decimal</code> &#8594; <code>Number</code>; <code>xs:date</code> &#8594; <code>Date</code>; <code>xs:boolean</code> &#8594; <code>Boolean</code>.</li>
+    <li><code>xs:enumeration</code> values &#8594; <code>Custom List</code> with those values.</li>
+    <li>keyref / foreign-key relationships &#8594; <code>Reference</code>.</li>
+  </ul>
+
+  <h3>Validation</h3>
+  <p>The app is the validator: <b>Import schema</b> rejects malformed files with a specific message, rejects
+  generated-data files (this format describes rules, not data), and holds the preview for review when a file
+  contains <code>Formula (JS)</code> fields. Remember: type strings must be exact, or the field silently becomes
+  <code>First Name</code>.</p>
 </div>
 
 </main>
