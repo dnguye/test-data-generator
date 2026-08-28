@@ -48,7 +48,13 @@ Export/import uses this JSON shape:
 
 Keep one schema file per data model and import whichever you need.
 
-## Field naming
+## Building structure without syntax
+
+Every field row has a **structure** button that opens a small builder: name the field, pick what it nests under, mark it as an XML attribute, and set repeats (exactly N, or a random range, applied to the group or the field). It writes the path syntax below for you, and the row shows badges for nesting, repeats and attributes.
+
+Fields can also be **dragged to reorder**, duplicated in one click, and every row shows a live sample value. The preview updates as you edit (Ctrl/Cmd+Enter refreshes it on demand) and has a copy button.
+
+## Field naming (the syntax the builder writes)
 
 | Syntax | Meaning | Output |
 |---|---|---|
@@ -63,6 +69,7 @@ Keep one schema file per data model and import whichever you need.
 - **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.username`, `commerce.productName`, `git.commitSha`, etc. Click the method box and type to search: the field autocompletes against every method the loaded Faker build exposes (244 across 26 modules), so you don't need to know a path in advance. The catalog is read from Faker itself at page load, and methods that require arguments are left out because this tool calls them with none. See [fakerjs.dev/api](https://fakerjs.dev/api/) for what each one returns.
 
   The type dropdown lists all of it: the built-ins first, then every Faker method grouped by module (`faker · finance`, `faker · vehicle`, …). Picking one is the same as choosing **Faker (any)** and typing that path by hand, so schemas exported before and after this change stay compatible.
+- **Combine / Transform:** build derived fields without writing code — pick source fields, a separator, and stack steps in order: `lowercase`, `UPPERCASE`, `Capitalize`, `normalize`, `slug`, `trim`, `initials`, plus prefix/suffix. E.g. `first_name + last_name → lowercase` joined with `.` gives `lenora.kuhlman`.
 - **Formula (JS):** JavaScript expression with access to other fields:
   - `field('name')` — value of another field (current repeat index if repeated)
   - `fields('name')` — full array for repeated fields

@@ -5,19 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Test Data Forge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#ECF1F7;
+  --paper:#F2F5FA;
+  --grid:#DCE4EF;
   --panel:#FFFFFF;
   --ink:#14213D;
   --muted:#5A6B87;
+  --faint:#B8C4D6;
   --line:#C9D4E3;
+  --soft-bg:#F7F9FC;
   --accent:#2450F5;
+  --accent-dk:#1a3fd0;
   --accent-soft:#E4EAFE;
   --ok:#0E7C5B;
   --warn:#B4540A;
+  --err:#B00020;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
   --body:'Inter',system-ui,sans-serif;
   --display:'Archivo',system-ui,sans-serif;
@@ -26,83 +30,136 @@
 html{-webkit-text-size-adjust:100%}
 body{
   font-family:var(--body);color:var(--ink);background:var(--paper);
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size:28px 28px;
-  background-position:-1px -1px;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;background-position:-1px -1px;
   min-height:100vh;
 }
-header{
-  padding:22px 20px 18px;border-bottom:2px solid var(--ink);
-  background:var(--panel);
-}
-.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;max-width:1200px;margin:0 auto}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(1.3rem,3.5vw,1.7rem);letter-spacing:-.02em;text-transform:uppercase}
-h1 span{color:var(--accent)}
-.tagline{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.02em}
-main{max-width:1200px;margin:0 auto;padding:18px 16px 60px;display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
-@media(max-width:880px){main{grid-template-columns:1fr}}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 0 rgba(20,33,61,.06)}
-.panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.panel-h h2{font-family:var(--display);font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
-.panel-h .tools{display:flex;gap:6px;flex-wrap:wrap}
-button{
-  font-family:var(--body);font-size:.78rem;font-weight:600;color:var(--ink);
-  background:var(--panel);border:1px solid var(--line);border-radius:6px;
-  padding:7px 11px;cursor:pointer;transition:background .12s;
-}
+button{font-family:var(--body);font-size:.8rem;font-weight:600;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:7px;padding:8px 13px;cursor:pointer;transition:background .12s}
 button:hover{background:var(--accent-soft)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button.primary:hover{background:#1a3fd0}
+button.primary:hover{background:var(--accent-dk)}
 button.ghost{border-color:transparent;color:var(--muted)}
 button.ghost:hover{color:var(--ink);background:var(--accent-soft)}
-.fields{padding:8px}
-.field-row{
-  display:grid;grid-template-columns:22px minmax(120px,1.1fr) minmax(110px,.9fr) minmax(140px,1.2fr) 30px;
-  gap:8px;align-items:start;padding:8px 6px;border-bottom:1px dashed var(--line);
-}
-.field-row:last-child{border-bottom:0}
-@media(max-width:640px){
-  .field-row{grid-template-columns:22px 1fr 30px;grid-auto-rows:auto}
-  .field-row .cell-type,.field-row .cell-opts{grid-column:2/3}
-}
-.mv{display:flex;flex-direction:column;gap:2px;padding-top:4px}
-.mv button{padding:0 4px;font-size:.6rem;line-height:1.3;border-color:transparent;color:var(--muted)}
-.mv button:hover{color:var(--accent);background:transparent}
-input[type=text],input[type=number],select,textarea{
-  width:100%;font-family:var(--mono);font-size:.76rem;color:var(--ink);
-  background:#FAFCFF;border:1px solid var(--line);border-radius:5px;padding:7px 8px;
-}
-textarea{resize:vertical;min-height:34px}
-select{font-family:var(--body)}
-.cell-opts .hint{font-size:.65rem;color:var(--muted);margin-top:3px;line-height:1.35}
-.sample{
-  font-family:var(--mono);font-size:.68rem;color:var(--accent);
-  background:var(--accent-soft);border-radius:4px;padding:2px 6px;margin-top:5px;
-  display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.del{border-color:transparent;color:var(--muted);font-size:.9rem;padding:4px 6px}
-.del:hover{color:#B00020;background:#FDEBEE}
-.settings{display:flex;flex-direction:column;gap:12px;padding:14px}
-.settings label{font-size:.72rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
-.settings .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.actions{display:flex;flex-direction:column;gap:8px;padding:0 14px 14px}
-.actions button{width:100%;padding:10px}
-#preview-panel{grid-column:1/-1}
-pre{
-  font-family:var(--mono);font-size:.74rem;line-height:1.55;
-  padding:14px;overflow:auto;max-height:420px;white-space:pre;
-}
-.tag{color:#1F5FBF}.attr{color:#8A4B08}.val{color:var(--ink)}.str{color:#0E7C5B}.num{color:#8A4B08}.key{color:#1F5FBF}
-.note{font-family:var(--mono);font-size:.68rem;color:var(--muted);padding:10px 14px;border-top:1px solid var(--line)}
-.status{font-family:var(--mono);font-size:.7rem;padding:8px 14px;color:var(--muted)}
-.status.err{color:#B00020}
+button.dashed{border:1px dashed var(--accent);color:var(--accent);background:var(--panel)}
+button.dashed:hover{background:var(--accent-soft)}
+button.soft{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+button.icon{padding:6px;line-height:0;border-color:transparent;background:transparent}
+button.icon:hover{background:var(--accent-soft)}
+input,select,textarea{font-family:var(--body);font-size:.82rem;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+input[type=number]{width:76px}
+textarea{font-family:var(--mono);font-size:.75rem;width:100%;resize:vertical}
+kbd{font-family:var(--mono);font-size:.65rem;background:var(--soft-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+code{font-family:var(--mono);font-size:.72rem;background:var(--accent-soft);border-radius:3px;padding:1px 4px}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:12px 22px;background:var(--panel);border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.15rem,3vw,1.35rem);letter-spacing:-.02em;text-transform:uppercase;white-space:nowrap}
+h1 span{color:var(--accent)}
+.tagline{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
+.hdr-tools{display:flex;gap:8px;flex-wrap:wrap}
+
+.toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;border-right:1px solid var(--line);padding:7px 15px;font-size:.78rem;color:var(--muted);background:var(--panel)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:#fff}
+.tb-group{display:flex;align-items:center;gap:7px}
+.tb-group label{font-family:var(--mono);font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tb-group input{font-family:var(--mono);font-size:.8rem}
+#xml-names input{width:96px}
+.tb-sep{width:1px;height:22px;background:var(--line)}
+.spacer{flex-grow:1}
+.status{font-family:var(--mono);font-size:.68rem;color:var(--muted);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status.err{color:var(--err)}
 .status.ok{color:var(--ok)}
-.helpbox{font-size:.72rem;line-height:1.5;color:var(--muted);padding:12px 14px;border-top:1px solid var(--line)}
-.helpbox code{font-family:var(--mono);font-size:.68rem;background:var(--accent-soft);border-radius:3px;padding:1px 4px;color:var(--ink)}
+
+main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,480px);gap:18px;align-items:start}
+@media(max-width:980px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 0 rgba(20,33,61,.06);overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-h h2{font-family:var(--display);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.cnt{font-family:var(--mono);font-size:.68rem;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
+.tools{display:flex;gap:7px;flex-wrap:wrap}
+
+.cols-h{display:grid;grid-template-columns:26px minmax(130px,1.1fr) minmax(140px,.95fr) minmax(170px,1.35fr) 96px;gap:9px;
+  padding:7px 14px;border-bottom:1px solid var(--line);background:var(--soft-bg)}
+.cols-h span{font-family:var(--mono);font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:720px){.cols-h{display:none}}
+
+.fields{padding:6px 8px}
+.field-row{display:grid;grid-template-columns:26px minmax(130px,1.1fr) minmax(140px,.95fr) minmax(170px,1.35fr) 96px;gap:9px;
+  align-items:start;padding:8px 6px;border-radius:8px;position:relative}
+.field-row:hover{background:var(--soft-bg)}
+.field-row.dragging{opacity:.45}
+.field-row.over{box-shadow:inset 0 2px 0 var(--accent)}
+@media(max-width:720px){.field-row{grid-template-columns:26px 1fr 96px}.cell-type,.cell-opts{grid-column:2/3}}
+.drag{border:0;background:transparent;cursor:grab;padding:8px 4px;color:var(--faint);line-height:0;border-radius:5px;justify-self:center}
+.drag:hover{color:var(--accent);background:var(--accent-soft)}
+.cell-name{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cell-name input{font-family:var(--mono);font-size:.78rem;width:100%}
+.badges{display:flex;gap:5px;flex-wrap:wrap}
+.badge{font-family:var(--mono);font-size:.6rem;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 6px}
+.badge.attr{color:var(--warn);background:#FDF0E3}
+.sample{font-family:var(--mono);font-size:.68rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.sample::before{content:"\2192  ";color:var(--faint)}
+.type-btn{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;font-size:.78rem;font-weight:500;
+  padding:7px 10px;text-align:left}
+.type-btn .t-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.type-btn.is-faker{color:var(--accent);font-weight:600}
+.cell-opts{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cell-opts input,.cell-opts textarea{font-family:var(--mono);font-size:.74rem;width:100%}
+.opt-row{display:flex;gap:6px}
+.opt-row input{min-width:0}
+.hint{font-size:.64rem;color:var(--muted);line-height:1.4}
+.row-actions{display:flex;gap:2px;justify-self:end}
+.row-actions button{color:var(--faint)}
+.row-actions button:hover{color:var(--accent)}
+.row-actions button[data-act=del]:hover{color:var(--err);background:#FBE9EC}
+
+.tf{display:flex;flex-direction:column;gap:5px}
+.tf-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tf-row label{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.62rem;color:var(--muted);text-transform:uppercase}
+.tf-row input{width:64px}
+.ops{display:flex;gap:4px;flex-wrap:wrap}
+.op{font-family:var(--mono);font-size:.64rem;font-weight:500;padding:3px 8px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}
+.op.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.op.on sup{margin-left:3px;opacity:.7}
+
+.helpbox{font-size:.7rem;line-height:1.6;color:var(--muted);padding:11px 14px;border-top:1px solid var(--line)}
 .helpbox b{color:var(--ink)}
+
+#preview-panel pre{margin:0;padding:14px;font-family:var(--mono);font-size:.72rem;line-height:1.65;overflow:auto;max-height:66vh;min-height:200px}
+.note{display:flex;align-items:center;gap:8px;font-size:.68rem;color:var(--muted);padding:9px 14px;border-top:1px solid var(--line);background:var(--soft-bg)}
+.tag{color:#7C3AED}.attr{color:var(--warn)}.str{color:var(--ok)}.key{color:var(--accent)}.num{color:var(--warn)}
+
+.pop{position:fixed;z-index:50;background:var(--panel);border:1px solid var(--ink);border-radius:9px;
+  box-shadow:0 10px 28px rgba(20,33,61,.18);width:min(330px,92vw)}
+.pop-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line)}
+.pop-search input{border:0;padding:2px;flex-grow:1;font-family:var(--mono);font-size:.78rem}
+.pop-search input:focus-visible{outline:none}
+.pop-list{max-height:330px;overflow:auto;padding:4px 0}
+.pop-g{font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:7px 12px 3px}
+.pop-it{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;cursor:pointer}
+.pop-it .l{font-family:var(--mono);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop-it .s{font-size:.66rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%;flex-shrink:0}
+.pop-it.act{background:var(--accent);color:#fff}
+.pop-it.act .s{color:#D9E1FD}
+.pop-more{font-size:.66rem;color:var(--muted);padding:7px 12px}
+.pop.struct{padding:12px;display:flex;flex-direction:column;gap:9px}
+.pop-h{font-family:var(--display);font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.s-lab{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.s-lab input,.s-lab select{font-family:var(--mono);font-size:.78rem;text-transform:none;letter-spacing:0;width:100%}
+.chk{display:flex;align-items:center;gap:7px;font-size:.76rem;color:var(--ink)}
+.rep-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rep-row select{font-size:.76rem}
+.rep-row input{width:58px;font-family:var(--mono);font-size:.78rem}
+.s-path{font-size:.72rem;color:var(--muted)}
+.s-path code{font-size:.72rem}
+.pop-actions{display:flex;justify-content:flex-end;gap:8px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -110,78 +167,94 @@ pre{
 <header>
   <div class="brand">
     <h1>Test&nbsp;Data&nbsp;<span>Forge</span></h1>
-    <div class="tagline">schema &rarr; faker &rarr; nested XML / JSON / CSV &middot; formulas can reference other fields</div>
+    <div class="tagline">schema &rarr; faker &rarr; nested XML / JSON / CSV &middot; runs entirely in your browser</div>
+  </div>
+  <div class="hdr-tools">
+    <button id="btn-import" class="ghost">Import schema</button>
+    <button id="btn-export" class="ghost">Export schema</button>
+    <input type="file" id="file-import" accept=".json,application/json" hidden>
+    <button id="btn-download" class="primary">Download</button>
   </div>
 </header>
+
+<div class="toolbar">
+  <div class="seg" id="fmt-seg" role="tablist" aria-label="Output format">
+    <button data-fmt="xml" role="tab">XML</button><button data-fmt="json" role="tab">JSON</button><button data-fmt="csv" role="tab">CSV</button>
+  </div>
+  <div class="tb-group" id="xml-names">
+    <label for="rootEl">root</label><input type="text" id="rootEl" value="records">
+    <label for="recEl">record</label><input type="text" id="recEl" value="record">
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group"><label for="rows">rows</label><input type="number" id="rows" value="100" min="1" max="10000"></div>
+  <div class="tb-group"><label for="seed">seed</label><input type="number" id="seed" placeholder="random"></div>
+  <div class="spacer"></div>
+  <div class="status" id="status">Ready.</div>
+  <button id="btn-preview" class="soft">Refresh preview</button>
+</div>
 
 <main>
   <section class="panel" id="schema-panel">
     <div class="panel-h">
-      <h2>Schema</h2>
+      <h2>Schema <span id="fcount" class="cnt"></span></h2>
       <div class="tools">
-        <button id="btn-add" class="primary">+ Add field</button>
         <button id="btn-example" class="ghost">Load example</button>
-        <button id="btn-import" class="ghost">Import schema</button>
-        <button id="btn-export" class="ghost">Export schema</button>
-        <input type="file" id="file-import" accept=".json,application/json" hidden>
+        <button id="btn-add" class="dashed">+ Add field</button>
       </div>
     </div>
+    <div class="cols-h"><span></span><span>Field</span><span>Type</span><span>Options</span><span></span></div>
     <div class="fields" id="fields"></div>
     <div class="helpbox">
-      <b>Field naming:</b> use dots to nest &mdash; <code>address.city</code> &rarr; <code>&lt;address&gt;&lt;city&gt;</code>.
-      Use <code>@</code> on the last part for an XML attribute &mdash; <code>order.@id</code>.
-      Use brackets to repeat &mdash; <code>friends.friend[3]</code> or a random range <code>item[2-5]</code>.<br>
-      <b>Formulas</b> are JavaScript. Reference other fields with <code>field('name')</code>. Helpers:
-      <code>normalize(s)</code> (lowercase, strip non-alphanumerics), <code>concat(a,b,...)</code>,
-      <code>pad(v,len)</code>, <code>rand(min,max)</code>, and <code>i</code> (repeat index).
-      Example: <code>normalize(field('name') + field('nick'))</code>
+      <b>No syntax needed:</b> the
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="vertical-align:-1px"><path d="M8 2v5"></path><path d="M8 7 3.5 11.5"></path><path d="M8 7l4.5 4.5"></path><circle cx="3.5" cy="13" r="1.6"></circle><circle cx="12.5" cy="13" r="1.6"></circle><circle cx="8" cy="2.5" r="1.6"></circle></svg>
+      button on each row builds nesting, repeats and XML attributes for you.
+      Power users can still type paths directly: dots nest (<code>address.city</code>), <code>@</code> marks an XML attribute (<code>order.@id</code>), brackets repeat (<code>item[2-5]</code>).
+      <b>Formulas</b> are JS: <code>field('name')</code>, <code>normalize()</code>, <code>concat()</code>, <code>pad()</code>, <code>rand()</code>, <code>i</code>.
     </div>
   </section>
-
-  <aside class="panel">
-    <div class="settings">
-      <div>
-        <label for="rows">Rows</label>
-        <input type="number" id="rows" value="10" min="1" max="10000">
-      </div>
-      <div class="pair">
-        <div>
-          <label for="seed">Seed (optional)</label>
-          <input type="number" id="seed" placeholder="random">
-        </div>
-        <div>
-          <label for="format">Format</label>
-          <select id="format">
-            <option value="xml">XML</option>
-            <option value="json">JSON</option>
-            <option value="csv">CSV</option>
-          </select>
-        </div>
-      </div>
-      <div class="pair" id="xml-names">
-        <div>
-          <label for="rootEl">Root element</label>
-          <input type="text" id="rootEl" value="records">
-        </div>
-        <div>
-          <label for="recEl">Record element</label>
-          <input type="text" id="recEl" value="record">
-        </div>
-      </div>
-    </div>
-    <div class="actions">
-      <button id="btn-preview" class="primary">Generate preview</button>
-      <button id="btn-download">Download file</button>
-    </div>
-    <div class="status" id="status">Ready.</div>
-  </aside>
 
   <section class="panel" id="preview-panel">
-    <div class="panel-h"><h2>Preview <span id="prev-count" style="font-weight:400;color:var(--muted);text-transform:none"></span></h2></div>
-    <pre id="preview">Add fields, then press Generate preview.</pre>
-    <div class="note">Preview shows the first 5 records. Download produces the full row count. Names, addresses, etc. come from the Faker library (loaded locally in your browser) &mdash; no data leaves this page.</div>
+    <div class="panel-h">
+      <h2>Preview <span id="prev-count" class="cnt"></span></h2>
+      <div class="tools"><button id="btn-copy" class="ghost">Copy</button></div>
+    </div>
+    <pre id="preview">Add fields to see a live preview.</pre>
+    <div class="note">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg>
+      <span>Preview shows 5 records, updates as you edit (<kbd>Ctrl/&#8984;+Enter</kbd> to refresh). Download produces the full row count. Nothing leaves this page.</span>
+    </div>
   </section>
 </main>
+
+<div id="type-pop" class="pop" hidden>
+  <div class="pop-search">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#5A6B87" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
+    <input id="type-q" placeholder="Search types&hellip;" aria-label="Search field types">
+    <span id="type-n" class="cnt"></span>
+  </div>
+  <div id="type-list" class="pop-list"></div>
+</div>
+
+<div id="struct-pop" class="pop struct" hidden>
+  <div class="pop-h">Structure</div>
+  <label class="s-lab">Field name<input id="st-leaf" autocomplete="off"></label>
+  <label class="s-lab">Nested under<input id="st-parent" list="group-names" autocomplete="off" placeholder="top level &mdash; e.g. orders.order"></label>
+  <label class="chk"><input type="checkbox" id="st-attr"> XML attribute</label>
+  <div class="s-lab">Repeat
+    <div class="rep-row">
+      <select id="st-rep" aria-label="Repeat mode"><option value="none">no repeat</option><option value="exact">exactly N</option><option value="range">random range</option></select>
+      <input type="number" id="st-min" min="1" value="1" aria-label="Repeat min">
+      <span id="st-dash">&ndash;</span>
+      <input type="number" id="st-max" min="1" value="3" aria-label="Repeat max">
+      <select id="st-where" aria-label="What repeats"><option value="group">repeat the group</option><option value="field">repeat this field</option></select>
+    </div>
+  </div>
+  <div class="s-path">path: <code id="st-path"></code></div>
+  <div class="pop-actions"><button id="st-cancel" class="ghost">Cancel</button><button id="st-apply" class="primary">Apply</button></div>
+</div>
+
+<datalist id="field-names"></datalist>
+<datalist id="group-names"></datalist>
 
 <script src="./faker.iife.js"></script>
 <script type="module">
@@ -298,9 +371,29 @@ const TYPES = {
   "Static Value":   {opts:{value:"fixed"}, gen:(o)=>o.value??""},
   "Lorem Words":    {opts:{count:"3"},
                      gen:(o)=>{const n=parseInt(o.count||3);const out=[];for(let k=0;k<n;k++)out.push(pick(POOL.words));return out.join(" ");}},
+  "Combine / Transform":{opts:{sources:"",separator:" ",ops:"",prefix:"",suffix:""}, derived:true, gen:()=>""},
   "Formula (JS)":   {opts:{expr:"normalize(field('name') + field('nick'))"}, formula:true, gen:()=>""}
 };
 const TYPE_NAMES = Object.keys(TYPES);
+
+/* ---------- Transform ops ---------- */
+const OPS={
+  "lowercase":s=>s.toLowerCase(),
+  "UPPERCASE":s=>s.toUpperCase(),
+  "Capitalize":s=>s.replace(/(^|\s)\p{L}/gu,c=>c.toUpperCase()),
+  "normalize":s=>HELPERS.normalize(s),
+  "slug":s=>s.toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,""),
+  "trim":s=>s.trim(),
+  "initials":s=>s.split(/\s+/).filter(Boolean).map(w=>w[0]).join("").toUpperCase()
+};
+const OP_NAMES=Object.keys(OPS);
+function applyTransform(o,flat,i){
+  const names=(o.sources||"").split(",").map(s=>s.trim()).filter(Boolean);
+  const val=n=>{const v=flat[n];return Array.isArray(v)?(v[i!==undefined?i:0]??v[0]):v;};
+  let s=names.map(n=>String(val(n)??"")).join(o.separator??" ");
+  for(const op of (o.ops||"").split(",").map(x=>x.trim()).filter(Boolean)) if(OPS[op]) s=OPS[op](s);
+  return (o.prefix||"")+s+(o.suffix||"");
+}
 
 /* ---------- State ---------- */
 let fields = [];
@@ -358,7 +451,7 @@ function generateRows(n){
     const ctx={rowIndex:r};
     // pass 1: non-formula
     for(const p of parsed){
-      const t=TYPES[p.f.type]; if(!t||t.formula) continue;
+      const t=TYPES[p.f.type]; if(!t||t.formula||t.derived) continue;
       if(p.rp){
         const c = counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max));
         const arr=[]; for(let k=0;k<c;k++) arr.push(t.gen(p.f.opts,ctx));
@@ -369,15 +462,17 @@ function generateRows(n){
     }
     // pass 2: formulas (in field order; can reference earlier formulas)
     for(const p of parsed){
-      const t=TYPES[p.f.type]; if(!t||!t.formula) continue;
-      const expr=p.f.opts.expr||'""';
+      const t=TYPES[p.f.type]; if(!t||!(t.formula||t.derived)) continue;
+      const compute=t.derived
+        ? (idx)=>applyTransform(p.f.opts,flat,idx)
+        : (idx)=>evalFormula(p.f.opts.expr||'""',flat,idx);
       try{
         if(p.rp){
           const c = counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max));
-          const arr=[]; for(let k=0;k<c;k++) arr.push(evalFormula(expr,flat,k));
+          const arr=[]; for(let k=0;k<c;k++) arr.push(compute(k));
           flat[p.f.name]=arr;
         }else{
-          flat[p.f.name]=evalFormula(expr,flat,undefined);
+          flat[p.f.name]=compute(undefined);
         }
       }catch(e){
         flat[p.f.name]="#ERR";
@@ -464,98 +559,278 @@ function toCsv(rows){
   return lines.join("\n");
 }
 
-/* ---------- UI ---------- */
-const $fields=document.getElementById("fields");
+/* ---------- UI helpers ---------- */
+const $=id=>document.getElementById(id);
+const escAttr=s=>String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+const escHtml=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+const ICONS={
+  drag:'<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="5.5" cy="3.5" r="1.4"/><circle cx="10.5" cy="3.5" r="1.4"/><circle cx="5.5" cy="8" r="1.4"/><circle cx="10.5" cy="8" r="1.4"/><circle cx="5.5" cy="12.5" r="1.4"/><circle cx="10.5" cy="12.5" r="1.4"/></svg>',
+  tree:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 4v3"/><path d="M8 7 3.5 11"/><path d="M8 7l4.5 4"/><circle cx="3.5" cy="12.5" r="1.6"/><circle cx="12.5" cy="12.5" r="1.6"/><circle cx="8" cy="3" r="1.6"/></svg>',
+  dup:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M3 11V4.5A1.5 1.5 0 0 1 4.5 3H11"/></svg>',
+  del:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 3.5l9 9"/><path d="M12.5 3.5l-9 9"/></svg>',
+  chev:'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5 8 10.5 12 6.5"/></svg>'
+};
+
+function typeLabel(f){
+  if(f.type==="Faker (any)"&&f.opts.method) return "faker · "+f.opts.method.trim();
+  return f.type;
+}
 function optsUI(f){
+  if(f.type==="Combine / Transform"){
+    const on=(f.opts.ops||"").split(",").map(s=>s.trim()).filter(Boolean);
+    const chips=OP_NAMES.map(op=>{
+      const idx=on.indexOf(op);
+      const sup=idx>=0&&on.length>1?`<sup>${idx+1}</sup>`:"";
+      return `<button type="button" class="op${idx>=0?" on":""}" data-op="${op}">${op}${sup}</button>`;
+    }).join("");
+    return `<div class="tf">
+      <input data-opt="sources" list="field-names" placeholder="source fields, comma-separated" value="${escAttr(f.opts.sources)}" aria-label="Source fields">
+      <div class="tf-row">
+        <label>join<input data-opt="separator" value="${escAttr(f.opts.separator)}" aria-label="Separator"></label>
+        <label>prefix<input data-opt="prefix" value="${escAttr(f.opts.prefix)}" aria-label="Prefix"></label>
+        <label>suffix<input data-opt="suffix" value="${escAttr(f.opts.suffix)}" aria-label="Suffix"></label>
+      </div>
+      <div class="ops" data-ops>${chips}</div>
+    </div>`;
+  }
   const t=TYPES[f.type];
   if(!t.opts) return "";
-  return Object.keys(t.opts).map(k=>{
+  const inputs=Object.keys(t.opts).map(k=>{
     const val=f.opts[k]??t.opts[k];
-    if(k==="expr"||k==="values") return `<textarea data-opt="${k}" rows="2" aria-label="${k}">${val}</textarea>`;
+    if(k==="expr"||k==="values") return `<textarea data-opt="${k}" rows="2" aria-label="${k}">${escHtml(val)}</textarea>`;
     const list=(f.type==="Faker (any)"&&k==="method"&&FAKER_METHODS.length)?' list="faker-methods"':"";
-    return `<input type="text" data-opt="${k}" value="${String(val).replace(/"/g,"&quot;")}" placeholder="${k}" aria-label="${k}"${list}>`;
-  }).join("");
+    return `<input type="text" data-opt="${k}" value="${escAttr(val)}" placeholder="${k}" aria-label="${k}"${list}>`;
+  });
+  if(f.type==="Number"||f.type==="Date") return `<div class="opt-row">${inputs.join("")}</div>`;
+  return inputs.join("");
 }
 function optHint(f){
-  if(f.type==="Formula (JS)") return "JS expression \u00b7 field('name')";
-  if(f.type==="Faker (any)") return FAKER_METHODS.length
-    ? FAKER_METHODS.length+" methods \u00b7 click the box and type to search \u00b7 e.g. finance.iban, vehicle.vin"
-    : "Faker not loaded \u2014 method paths unavailable";
+  if(f.type==="Formula (JS)") return "JS expression · field('name') reads other fields";
+  if(f.type==="Combine / Transform") return "joins the source fields, then applies the selected steps in order";
+  if(f.type==="Faker (any)") return "click the type to search the full catalog";
   if(f.type==="Custom List") return "comma-separated values";
-  if(f.type==="Number") return "min \u00b7 max \u00b7 decimals";
-  if(f.type==="Date") return "from \u00b7 to \u00b7 format";
+  if(f.type==="Number") return "min · max · decimals";
+  if(f.type==="Date") return "from · to · format";
   return "";
 }
-function typeSelectHTML(f){
-  /* A Faker method selection is stored as type "Faker (any)" + opts.method.
-     Reflect that back as the matching option so the dropdown shows it. */
-  const method=(f.type==="Faker (any)"&&f.opts&&f.opts.method)?String(f.opts.method).trim():null;
-  const cur=(method&&FAKER_METHODS.includes(method))?"faker:"+method:f.type;
-  let html='<optgroup label="Built-in types">'+
-    TYPE_NAMES.map(t=>`<option value="${t}"${t===cur?" selected":""}>${t}</option>`).join("")+
-    "</optgroup>";
-  let mod=null;
-  for(const path of FAKER_METHODS){
-    const m=path.split(".")[0];
-    if(m!==mod){ if(mod)html+="</optgroup>"; html+=`<optgroup label="faker \u00b7 ${m}">`; mod=m; }
-    const v="faker:"+path;
-    html+=`<option value="${v}"${v===cur?" selected":""}>${path}</option>`;
-  }
-  if(mod)html+="</optgroup>";
-  return `<select data-k="type" aria-label="Field type">${html}</select>`;
+function structBadges(f){
+  const segs=parseName(f.name.trim());
+  const out=[];
+  if(segs.length>1) out.push(`<span class="badge">${escHtml(segs.slice(0,-1).map(s=>s.key).join("."))} &gt;</span>`);
+  const rep=segs.find(s=>s.repeat);
+  if(rep) out.push(`<span class="badge">&times;${rep.repeat.min===rep.repeat.max?rep.repeat.min:rep.repeat.min+"–"+rep.repeat.max}</span>`);
+  if(segs[segs.length-1].attr) out.push('<span class="badge attr">@attr</span>');
+  return out.length?`<div class="badges">${out.join("")}</div>`:"";
 }
 
+/* ---------- Render ---------- */
+const $fields=$("fields");
+let dragIdx=null;
 function render(){
   $fields.innerHTML="";
   fields.forEach((f,idx)=>{
     const row=document.createElement("div");
     row.className="field-row";
     row.innerHTML=`
-      <div class="mv">
-        <button data-act="up" title="Move up" aria-label="Move up">&#9650;</button>
-        <button data-act="down" title="Move down" aria-label="Move down">&#9660;</button>
-      </div>
+      <button class="drag" title="Drag to reorder" aria-label="Drag to reorder">${ICONS.drag}</button>
       <div class="cell-name">
-        <input type="text" data-k="name" value="${f.name.replace(/"/g,"&quot;")}" aria-label="Field name">
+        <input type="text" data-k="name" value="${escAttr(f.name)}" aria-label="Field name" spellcheck="false">
+        ${structBadges(f)}
         <span class="sample" data-sample>&nbsp;</span>
       </div>
       <div class="cell-type">
-        ${typeSelectHTML(f)}
+        <button class="type-btn${f.type==="Faker (any)"?" is-faker":""}" data-act="type" title="Change type"><span class="t-label">${escHtml(typeLabel(f))}</span>${ICONS.chev}</button>
       </div>
       <div class="cell-opts">${optsUI(f)}<div class="hint">${optHint(f)}</div></div>
-      <button class="del" data-act="del" title="Remove field" aria-label="Remove field">&#10005;</button>`;
-    row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;debSample();});
-    row.querySelector('[data-k=type]').addEventListener("change",e=>{
-      const v=e.target.value;
-      if(v.startsWith("faker:")){ f.type="Faker (any)"; f.opts={method:v.slice(6)}; }
-      else { f.type=v; f.opts=Object.assign({},TYPES[f.type].opts||{}); }
-      render();
-    });
-    row.querySelectorAll("[data-opt]").forEach(el=>{
-      el.addEventListener("input",e=>{f.opts[e.target.dataset.opt]=e.target.value;debSample();});
+      <div class="row-actions">
+        <button class="icon" data-act="struct" title="Structure: nesting, repeat, attribute" aria-label="Structure">${ICONS.tree}</button>
+        <button class="icon" data-act="dup" title="Duplicate field" aria-label="Duplicate field">${ICONS.dup}</button>
+        <button class="icon" data-act="del" title="Remove field" aria-label="Remove field">${ICONS.del}</button>
+      </div>`;
+    row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;schedule();});
+    row.querySelector('[data-k=name]').addEventListener("change",()=>render());
+    row.querySelector('[data-act=type]').addEventListener("click",e=>openTypePicker(f,e.currentTarget));
+    row.querySelector('[data-act=struct]').addEventListener("click",e=>openStructPop(f,e.currentTarget));
+    row.querySelector('[data-act=dup]').addEventListener("click",()=>{
+      const c=newField(f.name+"_copy",f.type,JSON.parse(JSON.stringify(f.opts)));
+      fields.splice(idx+1,0,c);render();
     });
     row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);render();});
-    row.querySelector('[data-act=up]').addEventListener("click",()=>{if(idx>0){[fields[idx-1],fields[idx]]=[fields[idx],fields[idx-1]];render();}});
-    row.querySelector('[data-act=down]').addEventListener("click",()=>{if(idx<fields.length-1){[fields[idx+1],fields[idx]]=[fields[idx],fields[idx+1]];render();}});
+    row.querySelectorAll("[data-opt]").forEach(el=>{
+      el.addEventListener("input",e=>{f.opts[e.target.dataset.opt]=e.target.value;schedule();});
+    });
+    const opsBox=row.querySelector("[data-ops]");
+    if(opsBox) opsBox.querySelectorAll(".op").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        const on=(f.opts.ops||"").split(",").map(s=>s.trim()).filter(Boolean);
+        const i=on.indexOf(btn.dataset.op);
+        if(i>=0)on.splice(i,1);else on.push(btn.dataset.op);
+        f.opts.ops=on.join(",");render();
+      });
+    });
+    const handle=row.querySelector(".drag");
+    handle.addEventListener("mousedown",()=>row.draggable=true);
+    handle.addEventListener("touchstart",()=>row.draggable=true,{passive:true});
+    row.addEventListener("dragstart",e=>{dragIdx=idx;row.classList.add("dragging");e.dataTransfer.effectAllowed="move";});
+    row.addEventListener("dragend",()=>{row.draggable=false;row.classList.remove("dragging");
+      document.querySelectorAll(".field-row.over").forEach(r=>r.classList.remove("over"));dragIdx=null;});
+    row.addEventListener("dragover",e=>{e.preventDefault();if(dragIdx!==null&&dragIdx!==idx)row.classList.add("over");});
+    row.addEventListener("dragleave",()=>row.classList.remove("over"));
+    row.addEventListener("drop",e=>{
+      e.preventDefault();row.classList.remove("over");
+      if(dragIdx===null||dragIdx===idx)return;
+      const [m]=fields.splice(dragIdx,1);fields.splice(idx,0,m);dragIdx=null;render();
+    });
     $fields.appendChild(row);
   });
-  updateSamples();
+  $("fcount").textContent="· "+fields.length+" field"+(fields.length===1?"":"s");
+  $("field-names").innerHTML=fields.map(f=>`<option value="${escAttr(f.name)}"></option>`).join("");
+  const groups=new Set();
+  fields.forEach(f=>{const segs=parseName(f.name.trim());if(segs.length>1)groups.add(segs.slice(0,-1).map(s=>s.key).join("."));});
+  $("group-names").innerHTML=[...groups].map(g=>`<option value="${escAttr(g)}"></option>`).join("");
+  schedule();
 }
-let _debT=null;
-function debSample(){clearTimeout(_debT);_debT=setTimeout(updateSamples,350);}
-function updateSamples(){
-  if(!fields.length) return;
-  try{
-    const {rows}=generateRows(1);
-    const flat=rows[0].flat;
-    document.querySelectorAll(".field-row").forEach((el,i)=>{
-      const f=fields[i]; if(!f) return;
-      let v=flat[f.name];
-      if(Array.isArray(v)) v="["+v.slice(0,3).join(", ")+(v.length>3?", \u2026":"")+"]";
-      el.querySelector("[data-sample]").textContent=v===undefined?"\u00a0":String(v);
-    });
-  }catch(e){}
+
+/* ---------- Type picker ---------- */
+const typePop=$("type-pop");
+let pickField=null, pickItems=[], pickAct=0;
+function openTypePicker(f,anchor){
+  closeStructPop();
+  pickField=f;
+  $("type-q").value="";
+  typePop.hidden=false;
+  placePop(typePop,anchor);
+  renderPickList();
+  $("type-q").focus();
 }
+function closeTypePicker(){typePop.hidden=true;pickField=null;}
+function renderPickList(){
+  const q=$("type-q").value.trim().toLowerCase();
+  const all=[];
+  for(const t of TYPE_NAMES) if(t.toLowerCase().includes(q)) all.push({label:t,value:t,group:"Built-in types",faker:false});
+  for(const p of FAKER_METHODS) if(p.toLowerCase().includes(q)) all.push({label:p,value:"faker:"+p,group:"faker · "+p.split(".")[0],faker:true});
+  $("type-n").textContent=all.length+" match"+(all.length===1?"":"es");
+  pickItems=all.slice(0,70);
+  pickAct=0;
+  let html="",g=null;
+  pickItems.forEach((it,i)=>{
+    if(it.group!==g){html+=`<div class="pop-g">${escHtml(it.group)}</div>`;g=it.group;}
+    let sample="";
+    if(it.faker){try{sample=escHtml(String(fk(it.label,null)).slice(0,24));}catch(e){}}
+    html+=`<div class="pop-it${i===pickAct?" act":""}" data-i="${i}"><span class="l">${escHtml(it.label)}</span><span class="s">${sample}</span></div>`;
+  });
+  if(all.length>pickItems.length) html+=`<div class="pop-more">${all.length-pickItems.length} more — keep typing to narrow</div>`;
+  if(!all.length) html='<div class="pop-more">No matches.</div>';
+  $("type-list").innerHTML=html;
+  $("type-list").querySelectorAll(".pop-it").forEach(el=>{
+    el.addEventListener("click",()=>choosePick(parseInt(el.dataset.i)));
+    el.addEventListener("mousemove",()=>{setPickAct(parseInt(el.dataset.i));});
+  });
+}
+function setPickAct(i){
+  pickAct=i;
+  $("type-list").querySelectorAll(".pop-it").forEach(el=>el.classList.toggle("act",parseInt(el.dataset.i)===i));
+}
+function choosePick(i){
+  const it=pickItems[i]; if(!it||!pickField) return;
+  const f=pickField;
+  if(it.value.startsWith("faker:")){f.type="Faker (any)";f.opts={method:it.value.slice(6)};}
+  else{f.type=it.value;f.opts=Object.assign({},TYPES[f.type].opts||{});}
+  closeTypePicker();render();
+}
+$("type-q").addEventListener("input",renderPickList);
+$("type-q").addEventListener("keydown",e=>{
+  if(e.key==="ArrowDown"){e.preventDefault();if(pickAct<pickItems.length-1)setPickAct(pickAct+1);scrollPickIntoView();}
+  else if(e.key==="ArrowUp"){e.preventDefault();if(pickAct>0)setPickAct(pickAct-1);scrollPickIntoView();}
+  else if(e.key==="Enter"){e.preventDefault();choosePick(pickAct);}
+  else if(e.key==="Escape"){closeTypePicker();}
+});
+function scrollPickIntoView(){
+  const el=$("type-list").querySelector(".pop-it.act");
+  if(el)el.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- Structure popover ---------- */
+const structPop=$("struct-pop");
+let structField=null;
+function openStructPop(f,anchor){
+  closeTypePicker();
+  structField=f;
+  const segs=parseName(f.name.trim());
+  const leaf=segs[segs.length-1];
+  const parents=segs.slice(0,-1);
+  $("st-leaf").value=leaf.key;
+  $("st-parent").value=parents.map(s=>s.key).join(".");
+  $("st-attr").checked=!!leaf.attr;
+  let rep=null,where="group";
+  if(leaf.repeat){rep=leaf.repeat;where="field";}
+  else{const pr=parents.find(s=>s.repeat);if(pr){rep=pr.repeat;where="group";}}
+  $("st-rep").value=rep?(rep.min===rep.max?"exact":"range"):"none";
+  $("st-min").value=rep?rep.min:1;
+  $("st-max").value=rep?Math.max(rep.max,rep.min):3;
+  $("st-where").value=where;
+  structPop.hidden=false;
+  placePop(structPop,anchor);
+  syncStructUI();
+  $("st-leaf").focus();
+}
+function closeStructPop(){structPop.hidden=true;structField=null;}
+function buildStructName(){
+  const parentTxt=$("st-parent").value.trim();
+  const parents=parentTxt
+    ? parentTxt.split(".").map(k=>({key:k.replace(/\[[^\]]*\]/g,"").replace(/^@/,"").trim(),repeat:null,attr:false})).filter(s=>s.key)
+    : [];
+  const leaf={key:$("st-leaf").value.trim()||"field",attr:$("st-attr").checked,repeat:null};
+  const mode=$("st-rep").value;
+  if(mode!=="none"){
+    const mn=Math.max(1,parseInt($("st-min").value)||1);
+    const mx=mode==="exact"?mn:Math.max(mn,parseInt($("st-max").value)||mn);
+    const spec={min:mn,max:mx};
+    if($("st-where").value==="group"&&parents.length) parents[parents.length-1].repeat=spec;
+    else leaf.repeat=spec;
+  }
+  const ser=s=>(s.attr?"@":"")+s.key+(s.repeat?(s.repeat.min===s.repeat.max?"["+s.repeat.min+"]":"["+s.repeat.min+"-"+s.repeat.max+"]"):"");
+  return parents.concat([leaf]).map(ser).join(".");
+}
+function syncStructUI(){
+  const mode=$("st-rep").value;
+  $("st-min").style.display=mode==="none"?"none":"";
+  $("st-dash").style.display=mode==="range"?"":"none";
+  $("st-max").style.display=mode==="range"?"":"none";
+  $("st-where").style.display=(mode==="none"||!$("st-parent").value.trim())?"none":"";
+  $("st-path").textContent=buildStructName();
+}
+["st-leaf","st-parent","st-attr","st-rep","st-min","st-max","st-where"].forEach(id=>{
+  $(id).addEventListener("input",syncStructUI);
+  $(id).addEventListener("change",syncStructUI);
+});
+$("st-apply").addEventListener("click",()=>{
+  if(structField){structField.name=buildStructName();}
+  closeStructPop();render();
+});
+$("st-cancel").addEventListener("click",closeStructPop);
+
+/* ---------- Popover placement / dismissal ---------- */
+function placePop(pop,anchor){
+  const r=anchor.getBoundingClientRect();
+  pop.style.visibility="hidden";pop.style.display="";
+  const pw=pop.offsetWidth||330, ph=pop.offsetHeight||360;
+  let x=Math.min(r.left,window.innerWidth-pw-10);
+  let y=r.bottom+6;
+  if(y+ph>window.innerHeight-10) y=Math.max(10,r.top-ph-6);
+  pop.style.left=Math.max(10,x)+"px";
+  pop.style.top=y+"px";
+  pop.style.visibility="";
+}
+document.addEventListener("mousedown",e=>{
+  if(!typePop.hidden&&!typePop.contains(e.target)&&!e.target.closest("[data-act=type]")) closeTypePicker();
+  if(!structPop.hidden&&!structPop.contains(e.target)&&!e.target.closest("[data-act=struct]")) closeStructPop();
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){closeTypePicker();closeStructPop();}
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();refresh();}
+});
 
 /* ---------- Highlighting ---------- */
 function hlXml(src){
@@ -571,33 +846,68 @@ function hlJson(src){
 }
 function xescView(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
-/* ---------- Actions ---------- */
-const $status=document.getElementById("status");
+/* ---------- Output / preview ---------- */
+const $status=$("status");
 function setStatus(msg,cls){$status.textContent=msg;$status.className="status"+(cls?" "+cls:"");}
-function currentOutput(n){
-  const fmt=document.getElementById("format").value;
-  const {rows,errors,seed}=generateRows(n);
-  let out,mime,ext;
-  if(fmt==="xml"){out=toXml(rows,document.getElementById("rootEl").value||"records",document.getElementById("recEl").value||"record");mime="application/xml";ext="xml";}
-  else if(fmt==="json"){out=toJson(rows);mime="application/json";ext="json";}
-  else{out=toCsv(rows);mime="text/csv";ext="csv";}
-  return {out,mime,ext,errors,seed,fmt};
+let fmt="json";
+function serializeRows(rows){
+  if(fmt==="xml") return {out:toXml(rows,$("rootEl").value||"records",$("recEl").value||"record"),mime:"application/xml",ext:"xml"};
+  if(fmt==="json") return {out:toJson(rows),mime:"application/json",ext:"json"};
+  return {out:toCsv(rows),mime:"text/csv",ext:"csv"};
 }
-document.getElementById("btn-preview").addEventListener("click",()=>{
-  if(!fields.length){setStatus("Add at least one field first.","err");return;}
+let _schedT=null;
+function schedule(){clearTimeout(_schedT);_schedT=setTimeout(refresh,450);}
+function refresh(){
+  clearTimeout(_schedT);
+  if(!fields.length){
+    $("preview").textContent="Add a field to see a live preview.";
+    $("prev-count").textContent="";
+    return;
+  }
   try{
-    const {out,errors,seed,fmt}=currentOutput(5);
-    const pre=document.getElementById("preview");
-    pre.innerHTML = fmt==="xml"?hlXml(out):fmt==="json"?hlJson(out):xescView(out);
-    document.getElementById("prev-count").textContent="\u00b7 5 records \u00b7 seed "+seed;
-    setStatus(errors.length?("Formula errors: "+errors.join(" | ")):"Preview generated.",errors.length?"err":"ok");
+    const {rows,errors,seed}=generateRows(5);
+    const {out}=serializeRows(rows);
+    const pre=$("preview");
+    pre.innerHTML=fmt==="xml"?hlXml(out):fmt==="json"?hlJson(out):xescView(out);
+    $("prev-count").textContent="· 5 of "+($("rows").value||100)+" · seed "+seed;
+    const flat=rows[0].flat;
+    document.querySelectorAll(".field-row").forEach((el,i)=>{
+      const f=fields[i]; if(!f) return;
+      let v=flat[f.name];
+      if(Array.isArray(v)) v="["+v.slice(0,3).join(", ")+(v.length>3?", …":"")+"]";
+      el.querySelector("[data-sample]").textContent=v===undefined?" ":String(v);
+    });
+    setStatus(errors.length?("Formula errors: "+errors.join(" | ")):"Preview refreshed.",errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
+}
+
+/* ---------- Toolbar / actions ---------- */
+$("fmt-seg").querySelectorAll("button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    fmt=b.dataset.fmt;
+    $("fmt-seg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    $("xml-names").style.display=fmt==="xml"?"flex":"none";
+    refresh();
+  });
 });
-document.getElementById("btn-download").addEventListener("click",()=>{
+["rows","seed","rootEl","recEl"].forEach(id=>$(id).addEventListener("input",schedule));
+$("btn-preview").addEventListener("click",refresh);
+$("btn-copy").addEventListener("click",()=>{
+  const txt=$("preview").textContent;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>setStatus("Preview copied to clipboard.","ok"),()=>setStatus("Copy failed — select the text manually.","err"));
+  }else{
+    const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");setStatus("Preview copied to clipboard.","ok");}catch(e){setStatus("Copy failed.","err");}
+    ta.remove();
+  }
+});
+$("btn-download").addEventListener("click",()=>{
   if(!fields.length){setStatus("Add at least one field first.","err");return;}
-  const n=Math.min(Math.max(parseInt(document.getElementById("rows").value)||10,1),10000);
+  const n=Math.min(Math.max(parseInt($("rows").value)||10,1),10000);
   try{
-    const {out,mime,ext,errors}=currentOutput(n);
+    const {rows,errors}=generateRows(n);
+    const {out,mime,ext}=serializeRows(rows);
     const blob=new Blob([out],{type:mime});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);a.download="test-data."+ext;a.click();
@@ -605,29 +915,31 @@ document.getElementById("btn-download").addEventListener("click",()=>{
     setStatus(errors.length?("Downloaded with formula errors: "+errors.join(" | ")):("Downloaded "+n+" records."),errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 });
-document.getElementById("btn-add").addEventListener("click",()=>{fields.push(newField());render();});
-document.getElementById("btn-example").addEventListener("click",()=>{
+$("btn-add").addEventListener("click",()=>{fields.push(newField());render();});
+$("btn-example").addEventListener("click",()=>{
   fields=[
-    newField("name","First Name"),
-    newField("nick","Custom List",{values:"billy, bud, ace, champ, skip, buzz"}),
-    newField("combine.normalize","Formula (JS)",{expr:"normalize(field('name') + field('nick'))"}),
+    newField("first_name","First Name"),
+    newField("last_name","Last Name"),
+    newField("username","Combine / Transform",{sources:"first_name, last_name",separator:".",ops:"lowercase",prefix:"",suffix:""}),
+    newField("email","Email"),
     newField("address.city","City"),
     newField("address.@state","State Abbr"),
-    newField("orders.order[1-3].sku","Formula (JS)",{expr:"'SKU-' + pad(rand(1,999),3)"}),
-    newField("orders.order[1-3].qty","Number",{min:"1",max:"10",decimals:"0"})
+    newField("orders.order[1-3].sku","Faker (any)",{method:"commerce.isbn"}),
+    newField("orders.order[1-3].qty","Number",{min:"1",max:"10",decimals:"0"}),
+    newField("total","Formula (JS)",{expr:"rand(2000,40000)/100"})
   ];
-  render();setStatus("Example schema loaded \u2014 press Generate preview.","ok");
+  render();setStatus("Example schema loaded.","ok");
 });
-document.getElementById("btn-export").addEventListener("click",()=>{
-  const schema={root:document.getElementById("rootEl").value,record:document.getElementById("recEl").value,
+$("btn-export").addEventListener("click",()=>{
+  const schema={root:$("rootEl").value,record:$("recEl").value,
     fields:fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))};
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
   URL.revokeObjectURL(a.href);
   setStatus("Schema exported.","ok");
 });
-document.getElementById("btn-import").addEventListener("click",()=>document.getElementById("file-import").click());
-document.getElementById("file-import").addEventListener("change",e=>{
+$("btn-import").addEventListener("click",()=>$("file-import").click());
+$("file-import").addEventListener("change",e=>{
   const file=e.target.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=()=>{
@@ -639,16 +951,13 @@ document.getElementById("file-import").addEventListener("change",e=>{
         const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
         return newField(f.name||"field",type,f.opts||{});
       });
-      if(data.root)document.getElementById("rootEl").value=data.root;
-      if(data.record)document.getElementById("recEl").value=data.record;
+      if(data.root)$("rootEl").value=data.root;
+      if(data.record)$("recEl").value=data.record;
       render();setStatus("Imported "+fields.length+" fields.","ok");
     }catch(err){setStatus("Import failed: "+err.message,"err");}
   };
   rd.readAsText(file);
   e.target.value="";
-});
-document.getElementById("format").addEventListener("change",e=>{
-  document.getElementById("xml-names").style.display=e.target.value==="xml"?"grid":"none";
 });
 
 /* ---------- Boot ---------- */
@@ -658,9 +967,12 @@ if(FAKER_METHODS.length){
   dl.innerHTML=FAKER_METHODS.map(m=>`<option value="${m}"></option>`).join("");
   document.body.appendChild(dl);
 }
-if(!HAS_FAKER) setStatus("Faker not loaded (CDN blocked?) \u2014 using built-in sample pools. See README to vendor faker.js locally.","err");
-document.getElementById("btn-example").click();
-document.getElementById("btn-preview").click();
+$("type-q").placeholder="Search "+(TYPE_NAMES.length+FAKER_METHODS.length)+" types…";
+$("xml-names").style.display="none";
+document.querySelector('#fmt-seg [data-fmt=json]').classList.add("on");
+if(!HAS_FAKER) setStatus("Faker not loaded — using built-in sample pools. See README to vendor faker.js locally.","err");
+$("btn-example").click();
+refresh();
 </script>
 </body>
 </html>
