@@ -133,7 +133,9 @@ orders.order[1-3].qty</code></pre>
   </ul>
   <p>A Reference may only point at a tab to its <em>left</em> (parents must exist first); anything else produces
   <code>#REF</code> with an explanation in the status bar. Formulas on the child can read the reference like any other
-  field — e.g. <code>field('account_id') + '-' + field('id')</code> for a compound key.</p>
+  field — e.g. <code>field('account_id') + '-' + field('id')</code> for a compound key. To carry <em>several</em>
+  fields from the same parent (id and name together), see <a href="#recipes">Cross-entity: id AND name from the
+  same parent</a> under Formula recipes.</p>
   <h3>Downloading</h3>
   <p><b>Download</b> saves the active tab's file; <b>Download all</b> saves one file per entity
   (<code>accounts.csv</code>, <code>contacts.csv</code>, &hellip;) from a single generation run, so the IDs line up
@@ -260,23 +262,55 @@ field('city').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/
 <span class="cm">// trim whitespace</span>
 field('notes').trim()</code></pre>
 
-  <h3>Consistent city / state / zip</h3>
+  <h3>Consistent city / state / zip (and area code)</h3>
   <p>The built-in address types are <em>independent</em> random draws — the zip won't belong to the city, and the
   city won't be in the state (the underlying Faker library's cities are fictional, so no true mapping exists).
-  For geographically consistent records, put real triples in one Custom List and split it with formulas:</p>
-  <pre><code><span class="cm">// geo — Custom List, values:</span>
-Springfield|IL|62701, Austin|TX|78701, Denver|CO|80202, Portland|OR|97201
+  The fix for any group of fields that must agree is one <b>shared source</b> field plus formulas that split it:</p>
+  <pre><code><span class="cm">// geo — Custom List, values: City|ST|Zip|AreaCode</span>
+Springfield|IL|62701|217, Austin|TX|78701|512, Denver|CO|80202|303, Portland|OR|97201|503
 
-<span class="cm">// city — Formula (JS)</span>
+<span class="cm">// city / state / zip — three Formula (JS) fields</span>
 field('geo').split('|')[0]
-
-<span class="cm">// state — Formula (JS)</span>
 field('geo').split('|')[1]
-
-<span class="cm">// zip — Formula (JS)</span>
 field('geo').split('|')[2]</code></pre>
-  <p class="dim">Each record picks one triple, so all three fields stay consistent. The helper <code>geo</code>
+  <p class="dim">Each record picks one entry, so every part stays consistent. The helper <code>geo</code>
   column does appear in the output — name it something downstream consumers can ignore.</p>
+
+  <h3>Phone and fax tied to the city</h3>
+  <p>Building on the <code>geo</code> quad above: the phone's area code comes from the record's own city, and the
+  fax shares the phone's area code and exchange — the way office numbers actually look.</p>
+  <pre><code><span class="cm">// phone — Formula (JS): area code from geo &#8594; (303) 735-1748</span>
+'(' + field('geo').split('|')[3] + ') ' + pad(rand(200,999),3) + '-' + pad(rand(0,9999),4)
+
+<span class="cm">// fax — Formula (JS): same area code and exchange, different line &#8594; (303) 735-5265</span>
+field('phone').slice(0,-4) + pad(rand(0,9999),4)</code></pre>
+
+  <h3>Corporate email from the company</h3>
+  <p>Contacts at the same company should share a domain derived from it (person-derived local parts are under
+  <i>Combining fields</i> above):</p>
+  <pre><code><span class="cm">// email — Formula (JS) &#8594; garnet.reynoldsmiller@cristbeer.com</span>
+(field('first_name')+'.'+field('last_name')).toLowerCase().replace(/[^a-z0-9.]/g,'')
+  + '@' + normalize(field('company')).slice(0,20) + '.com'</code></pre>
+
+  <h3>Ordered dates and age</h3>
+  <pre><code><span class="cm">// created — Date field (YYYY-MM-DD), then modified — Formula (JS): always 1–90 days later</span>
+(()=>{ const d = new Date(field('created')); d.setDate(d.getDate() + rand(1,90));
+       return d.toISOString().slice(0,10); })()
+
+<span class="cm">// age — Formula (JS), consistent with a dob Date field</span>
+<span class="cm">// (a fixed 'as of' date keeps the dataset reproducible; Date.now() would drift daily)</span>
+Math.floor((new Date('2026-08-28') - new Date(field('dob'))) / 31557600000)</code></pre>
+
+  <h3>Cross-entity: id AND name from the same parent</h3>
+  <p><b>The trap:</b> two separate Reference fields to the same entity pick <em>independently</em> — a contact
+  would get one account's id and a <em>different</em> account's name. The fix is the same shared-source pattern
+  across entities: give the parent a composite key, reference that, and split it on the child.</p>
+  <pre><code><span class="cm">// on Accounts:  key — Formula (JS)</span>
+field('id') + '|' + field('name')
+
+<span class="cm">// on Contacts:  acct — Reference &#8594; Accounts.key, then two formulas:</span>
+field('acct').split('|')[0]                      <span class="cm">// account_id</span>
+field('acct').split('|').slice(1).join('|')      <span class="cm">// account_name (safe if the name has a |)</span></code></pre>
 
   <h3>IDs &amp; codes</h3>
   <pre><code><span class="cm">// padded code: CUST-000042 (uses a Row Number field named id)</span>
