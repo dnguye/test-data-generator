@@ -71,7 +71,7 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
   press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
-    <a href="#types">Field types</a><a href="#faker">Faker catalog</a><a href="#structure">Nesting &amp; repeats</a>
+    <a href="#structure">Nesting &amp; repeats</a>
     <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a>
   </div>
 </div>
@@ -85,56 +85,6 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
     <li>Pick a format, set the row count, and <b>Download</b>.</li>
   </ol>
   <p class="dim">Drag the dotted handle to reorder fields; the copy icon duplicates a field.</p>
-</div>
-
-<div class="card" id="types">
-  <h2>Field types</h2>
-  <table>
-    <tr><th>Type</th><th>Generates</th><th>Options</th></tr>
-    <tr><td>Row Number</td><td>1, 2, 3, &hellip; per record</td><td>&mdash;</td></tr>
-    <tr><td>First Name</td><td><code>Lenora</code></td><td>&mdash;</td></tr>
-    <tr><td>Last Name</td><td><code>Kuhlman</code></td><td>&mdash;</td></tr>
-    <tr><td>Full Name</td><td><code>Lenora Kuhlman</code></td><td>&mdash;</td></tr>
-    <tr><td>Email</td><td><code>Lenora.Kuhlman42@hotmail.com</code></td><td>&mdash;</td></tr>
-    <tr><td>Phone</td><td><code>(555) 234-0192</code></td><td>&mdash;</td></tr>
-    <tr><td>Street Address</td><td><code>4218 Maple Ave</code></td><td>&mdash;</td></tr>
-    <tr><td>City / State / State Abbr / Zip Code / Country</td><td>address parts</td><td>&mdash;</td></tr>
-    <tr><td>Company</td><td><code>Kuhlman &ndash; Ortiz</code></td><td>&mdash;</td></tr>
-    <tr><td>Job Title</td><td><code>Lead Data Engineer</code></td><td>&mdash;</td></tr>
-    <tr><td>Faker (any)</td><td>any method in the Faker library</td><td><code>method</code> — a path like <code>finance.iban</code>; see <a href="#faker">Faker catalog</a></td></tr>
-    <tr><td>UUID</td><td><code>0b6ee01a-9c07-4d92-&hellip;</code></td><td>&mdash;</td></tr>
-    <tr><td>Boolean</td><td><code>true</code> / <code>false</code></td><td>&mdash;</td></tr>
-    <tr><td>Number</td><td>random number</td><td><code>min</code> · <code>max</code> · <code>decimals</code></td></tr>
-    <tr><td>Date</td><td>random date in a range</td><td><code>from</code> · <code>to</code> (ISO dates) · format using <code>YYYY MM DD HH mm ss</code>, e.g. <code>YYYY-MM-DD HH:mm</code></td></tr>
-    <tr><td>Custom List</td><td>one value from your list</td><td><code>values</code> — comma-separated, e.g. <code>red, green, blue</code></td></tr>
-    <tr><td>Static Value</td><td>the same value in every record</td><td><code>value</code></td></tr>
-    <tr><td>Lorem Words</td><td>placeholder words</td><td><code>count</code></td></tr>
-    <tr><td>Formula (JS)</td><td>anything you can compute</td><td><code>expr</code> — a JavaScript expression; see <a href="#formulas">Formulas</a></td></tr>
-  </table>
-</div>
-
-<div class="card" id="faker">
-  <h2>The Faker catalog</h2>
-  <p>The type picker searches the entire <a href="https://fakerjs.dev/api/" rel="noopener">@faker-js/faker v9</a> catalog —
-  244 methods across 26 modules — with a live sample next to each. Picking one sets the field to
-  <b>Faker (any)</b> with that method path; you can also type a path into the method box directly.</p>
-  <p>A few useful ones:</p>
-  <table>
-    <tr><th>Method</th><th>Example output</th></tr>
-    <tr><td><code>finance.iban</code></td><td><code>GB29NWBK60161331926819</code></td></tr>
-    <tr><td><code>finance.creditCardNumber</code></td><td><code>3528-4491-3782-2717</code></td></tr>
-    <tr><td><code>internet.username</code></td><td><code>Lenora.Kuhlman42</code></td></tr>
-    <tr><td><code>internet.ip</code></td><td><code>192.168.14.7</code></td></tr>
-    <tr><td><code>commerce.productName</code></td><td><code>Ergonomic Steel Chair</code></td></tr>
-    <tr><td><code>commerce.isbn</code></td><td><code>978-1-56619-909-4</code></td></tr>
-    <tr><td><code>vehicle.vin</code></td><td><code>1FTFW1E5XJF C10312</code></td></tr>
-    <tr><td><code>git.commitSha</code></td><td><code>4f1f9a0e&hellip;</code></td></tr>
-    <tr><td><code>airline.flightNumber</code></td><td><code>2405</code></td></tr>
-    <tr><td><code>string.alphanumeric</code></td><td><code>kD8s2Wq1</code></td></tr>
-  </table>
-  <p class="dim">The catalog is read from the Faker build the app ships with, and only lists methods that work
-  without arguments — that's how this tool calls them. Methods that require arguments (like
-  <code>date.between</code>) are not listed; use a <b>Date</b> field or a formula instead.</p>
 </div>
 
 <div class="card" id="structure">
