@@ -1078,7 +1078,11 @@ function xescView(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace
 
 /* ---------- Output / preview ---------- */
 const $status=$("status");
-function setStatus(msg,cls){$status.textContent=msg;$status.className="status"+(cls?" "+cls:"");}
+let _stHold=0;
+function setStatus(msg,cls,holdMs){
+  $status.textContent=msg;$status.className="status"+(cls?" "+cls:"");
+  _stHold=holdMs?Date.now()+holdMs:0;
+}
 let fmt="json";
 function serializeRows(rows,en){
   if(fmt==="xml") return {out:toXml(rows,en.root||"records",en.record||"record"),mime:"application/xml",ext:"xml"};
@@ -1144,7 +1148,8 @@ function refresh(){
       const parts=Object.entries(stats).map(([k,v])=>k+" "+(v.reduce((x,y)=>x+y,0)/v.length).toFixed(3));
       if(parts.length) ok="Achieved similarity: "+parts.join(" · ");
     }
-    setStatus(errors.length?errors.join(" | "):ok,errors.length?"err":"ok");
+    if(errors.length) setStatus(errors.join(" | "),"err");
+    else if(Date.now()>=_stHold) setStatus(ok,"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 }
 
@@ -1167,7 +1172,7 @@ $("btn-preview").addEventListener("click",refresh);
 $("btn-copy").addEventListener("click",()=>{
   const txt=$("preview").textContent;
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(()=>setStatus("Preview copied to clipboard.","ok"),()=>setStatus("Copy failed — select the text manually.","err"));
+    navigator.clipboard.writeText(txt).then(()=>setStatus("Preview copied to clipboard.","ok",3000),()=>setStatus("Copy failed — select the text manually.","err"));
   }else{
     const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();
     try{document.execCommand("copy");setStatus("Preview copied to clipboard.","ok");}catch(e){setStatus("Copy failed.","err");}
@@ -1220,7 +1225,7 @@ $("btn-export").addEventListener("click",()=>{
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
   URL.revokeObjectURL(a.href);
-  setStatus("Schema exported.","ok");
+  setStatus("Schema exported.","ok",4000);
 });
 $("btn-import").addEventListener("click",()=>$("file-import").click());
 $("file-import").addEventListener("change",e=>{
@@ -1246,18 +1251,21 @@ $("file-import").addEventListener("change",e=>{
         });
         if(!entities.length) entities=[newEntity("Records")];
         activeEnt=0; fields=curEnt().fields; syncToolbar();
-        render();setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok");
+        render();setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok",4000);
       }else{                                               // v1: the file is the whole schema
         const list=Array.isArray(data)?data:data.fields;
-        if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields");
+        if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields — use a file saved by 'Export schema'");
+        const isField=f=>f&&typeof f==="object"&&!Array.isArray(f)&&(typeof f.type==="string"||(f.opts&&typeof f.opts==="object"));
+        if(!list.length||!list.every(isField))
+          throw new Error("This looks like generated DATA, not a schema. Import the file saved by 'Export schema' (each field needs name, type and opts).");
         const en=newEntity("Records");
         en.fields=mkFields(list);
         if(data.root)en.root=data.root;
         if(data.record)en.record=data.record;
         entities=[en]; activeEnt=0; fields=en.fields; syncToolbar();
-        render();setStatus("Imported "+fields.length+" fields.","ok");
+        render();setStatus("Imported "+fields.length+" fields.","ok",4000);
       }
-    }catch(err){setStatus("Import failed: "+err.message,"err");}
+    }catch(err){setStatus("Import failed: "+err.message,"err",8000);}
   };
   rd.readAsText(file);
   e.target.value="";
