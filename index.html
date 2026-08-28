@@ -47,6 +47,18 @@ button.dashed:hover{background:var(--accent-soft)}
 button.soft{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .doclink{display:inline-flex;align-items:center;font-size:.8rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 13px;border-radius:7px}
 .doclink:hover{color:var(--ink);background:var(--accent-soft)}
+.tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 12px;background:var(--soft-bg);border-bottom:1px solid var(--line)}
+.tab{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+.tab:hover{color:var(--ink);border-color:var(--accent)}
+.tab.on{color:var(--ink);border-color:var(--accent);background:var(--accent-soft);cursor:default}
+.tab.on input{border:0;background:transparent;font-family:var(--body);font-weight:600;font-size:.78rem;padding:0;color:var(--ink)}
+.trows{font-family:var(--mono);font-size:.62rem;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:1px 7px}
+.tmv,.tdel{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:0 2px;font-size:.85rem;line-height:1}
+.tmv:hover{color:var(--accent)}
+.tdel:hover{color:var(--err)}
+.tab.tadd{font-weight:700;color:var(--accent);border-style:dashed}
+.chk{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--ink)}
+.chk input{width:auto}
 button.icon{padding:6px;line-height:0;border-color:transparent;background:transparent}
 button.icon:hover{background:var(--accent-soft)}
 input,select,textarea{font-family:var(--body);font-size:.82rem;color:var(--ink);background:var(--panel);
@@ -147,6 +159,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
     <button id="btn-import" class="ghost">Import schema</button>
     <button id="btn-export" class="ghost">Export schema</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
+    <button id="btn-download-all" class="ghost" style="display:none">Download all</button>
     <button id="btn-download" class="primary">Download</button>
   </div>
 </header>
@@ -169,6 +182,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 
 <main>
   <section class="panel" id="schema-panel">
+    <div class="tabs" id="ent-tabs"></div>
     <div class="panel-h">
       <h2>Schema <span id="fcount" class="cnt"></span></h2>
       <div class="tools">
@@ -322,13 +336,40 @@ const TYPES = {
   "Static Value":   {opts:{value:"fixed"}, gen:(o)=>o.value??""},
   "Lorem Words":    {opts:{count:"3"},
                      gen:(o)=>{const n=parseInt(o.count||3);const out=[];for(let k=0;k<n;k++)out.push(pick(POOL.words));return out.join(" ");}},
+  "Reference":      {opts:{entity:"",field:"",unique:""},
+                     gen:(o,ctx)=>{
+                       const pool=ctx.registry&&ctx.registry[o.entity]&&ctx.registry[o.entity][o.field];
+                       const err=m=>{if(ctx.errors&&ctx.errors.length<5&&!ctx.errors.includes(m))ctx.errors.push(m);};
+                       if(!pool||!pool.length){
+                         err("Reference "+(o.entity||"?")+"."+(o.field||"?")+": no values — the source must be an entity tab to the LEFT");
+                         return "#REF";
+                       }
+                       if(o.unique==="1"){
+                         let st=ctx.uniq.get(o);
+                         if(!st){
+                           st=pool.slice();
+                           for(let k=st.length-1;k>0;k--){const j=Math.floor(rnd()*(k+1));[st[k],st[j]]=[st[j],st[k]];}
+                           ctx.uniq.set(o,st);
+                         }
+                         if(!st.length){err("Reference "+o.entity+"."+o.field+": ran out of unique values — more rows here than in "+o.entity);return "#REF";}
+                         return st.pop();
+                       }
+                       return pool[Math.floor(rnd()*pool.length)];
+                     }},
   "Formula (JS)":   {opts:{expr:"normalize(field('name') + field('nick'))"}, formula:true, gen:()=>""}
 };
 const TYPE_NAMES = Object.keys(TYPES);
 
 /* ---------- State ---------- */
-let fields = [];
+let fields = [];            // alias of the active entity's field array
 let fid = 0;
+let eid = 0;
+let entities = [];
+let activeEnt = 0;
+function newEntity(name){
+  return {id:++eid, name:name||("Entity"+eid), rows:"100", root:"records", record:"record", fields:[]};
+}
+function curEnt(){return entities[activeEnt];}
 function newField(name,type,opts){
   const t = TYPES[type] || TYPES["First Name"];
   return {id:++fid, name:name||"field_"+fid, type:type||"First Name", opts:Object.assign({},t.opts||{},opts||{})};
@@ -367,19 +408,22 @@ function evalFormula(expr, flat, i){
 }
 
 /* ---------- Generation ---------- */
-function generateRows(n){
+function initRun(){
   const seedIn = document.getElementById("seed").value;
   const seed = seedIn===""?Math.floor(Math.random()*1e9):parseInt(seedIn);
   _rng = mulberry32(seed);
   if(HAS_FAKER && faker.seed) try{faker.seed(seed);}catch(e){}
+  return seed;
+}
+function generateRows(flds, n, registry, errors){
   const rows=[];
-  const parsed = fields.map(f=>({f, segs:parseName(f.name.trim()), rp:null}));
+  const uniq=new Map();
+  const parsed = flds.map(f=>({f, segs:parseName(f.name.trim()), rp:null}));
   parsed.forEach(p=>p.rp=repeatPrefix(p.segs));
-  const errors=[];
   for(let r=0;r<n;r++){
     const flat={};        // fieldName -> value | array
     const counts={};      // repeatPath -> count for this row
-    const ctx={rowIndex:r};
+    const ctx={rowIndex:r, registry, uniq, errors};
     // pass 1: non-formula
     for(const p of parsed){
       const t=TYPES[p.f.type]; if(!t||t.formula) continue;
@@ -410,7 +454,7 @@ function generateRows(n){
     }
     rows.push({flat,parsed});
   }
-  return {rows,errors,seed};
+  return {rows};
 }
 
 /* ---------- Nesting ---------- */
@@ -488,6 +532,25 @@ function toCsv(rows){
   return lines.join("\n");
 }
 
+/* ---------- Run: entities in tab order, sharing a value registry ---------- */
+function entRowCount(en){return Math.min(Math.max(parseInt(en.rows)||10,1),10000);}
+function runAll(countFor){
+  const seed=initRun();
+  const errors=[], registry={}, results=[];
+  for(const en of entities){
+    const {rows}=generateRows(en.fields, countFor(en), registry, errors);
+    const reg={};
+    for(const f of en.fields){
+      const vals=[];
+      for(const r of rows){const v=r.flat[f.name];if(Array.isArray(v))vals.push(...v);else if(v!==undefined)vals.push(v);}
+      reg[f.name]=vals;
+    }
+    registry[en.name]=reg;
+    results.push({en,rows});
+  }
+  return {results,errors,seed,registry};
+}
+
 /* ---------- UI helpers ---------- */
 const $=id=>document.getElementById(id);
 const escAttr=s=>String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
@@ -505,6 +568,19 @@ function typeLabel(f){
   return f.type;
 }
 function optsUI(f){
+  if(f.type==="Reference"){
+    const earlier=entities.slice(0,activeEnt);
+    if(!earlier.length)
+      return '<div class="hint">Add an entity tab to the LEFT first — parents generate before children.</div>';
+    const ent=earlier.find(e=>e.name===f.opts.entity)||null;
+    const entOpts=earlier.map(e=>`<option value="${escAttr(e.name)}"${ent===e?" selected":""}>${escHtml(e.name)}</option>`).join("");
+    const fldOpts=(ent?ent.fields:[]).map(x=>`<option value="${escAttr(x.name)}"${f.opts.field===x.name?" selected":""}>${escHtml(x.name)}</option>`).join("");
+    return `<div class="opt-row">
+      <select data-opt="entity" aria-label="Source entity"><option value="">from entity…</option>${entOpts}</select>
+      <select data-opt="field" aria-label="Source field"><option value="">field…</option>${fldOpts}</select>
+    </div>
+    <label class="chk"><input type="checkbox" data-optchk="unique"${f.opts.unique==="1"?" checked":""}> unique — each value used at most once</label>`;
+  }
   const t=TYPES[f.type];
   if(!t.opts) return "";
   const inputs=Object.keys(t.opts).map(k=>{
@@ -519,16 +595,69 @@ function optsUI(f){
 function optHint(f){
   if(f.type==="Formula (JS)") return "JS expression · field('name') reads other fields";
   if(f.type==="Faker (any)") return "click the type to search the full catalog";
+  if(f.type==="Reference") return entities.slice(0,activeEnt).length?"picks values already generated for that entity":"";
   if(f.type==="Custom List") return "comma-separated values";
   if(f.type==="Number") return "min · max · decimals";
   if(f.type==="Date") return "from · to · format";
   return "";
 }
 
+/* ---------- Entity tabs ---------- */
+function renderTabs(){
+  const bar=$("ent-tabs"); bar.innerHTML="";
+  entities.forEach((en,ix)=>{
+    if(ix===activeEnt){
+      const t=document.createElement("div");t.className="tab on";
+      t.innerHTML=`<button class="tmv" data-mv="-1" title="Move left (generates earlier)" aria-label="Move left">&#8249;</button>
+        <input value="${escAttr(en.name)}" aria-label="Entity name" size="${Math.max(en.name.length,4)}">
+        <span class="trows">${escHtml(String(entRowCount(en)))} rows</span>
+        <button class="tmv" data-mv="1" title="Move right (generates later)" aria-label="Move right">&#8250;</button>`+
+        (entities.length>1?`<button class="tdel" title="Remove entity" aria-label="Remove entity">&#10005;</button>`:"");
+      t.querySelector("input").addEventListener("change",e=>renameEntity(en,e.target.value));
+      t.querySelectorAll(".tmv").forEach(b=>b.addEventListener("click",()=>moveEntity(ix,parseInt(b.dataset.mv))));
+      const del=t.querySelector(".tdel"); if(del)del.addEventListener("click",()=>removeEntity(ix));
+      bar.appendChild(t);
+    }else{
+      const b=document.createElement("button");b.className="tab";b.type="button";
+      b.innerHTML=`${escHtml(en.name)} <span class="trows">${escHtml(String(entRowCount(en)))}</span>`;
+      b.addEventListener("click",()=>switchEnt(ix));
+      bar.appendChild(b);
+    }
+  });
+  const add=document.createElement("button");add.className="tab tadd";add.type="button";
+  add.textContent="+";add.title="Add entity (a second record type, e.g. Contacts)";
+  add.addEventListener("click",()=>{entities.push(newEntity());switchEnt(entities.length-1);});
+  bar.appendChild(add);
+}
+function switchEnt(ix){activeEnt=ix;fields=curEnt().fields;syncToolbar();render();}
+function syncToolbar(){$("rows").value=curEnt().rows;$("rootEl").value=curEnt().root;$("recEl").value=curEnt().record;}
+function renameEntity(en,name){
+  name=name.trim()||en.name;
+  while(entities.some(e=>e!==en&&e.name===name)) name+="_2";
+  const old=en.name; en.name=name;
+  if(old!==name) entities.forEach(e=>e.fields.forEach(f=>{if(f.type==="Reference"&&f.opts.entity===old)f.opts.entity=name;}));
+  render();
+}
+function moveEntity(ix,d){
+  const j=ix+d; if(j<0||j>=entities.length) return;
+  [entities[ix],entities[j]]=[entities[j],entities[ix]];
+  activeEnt=j; render();
+}
+function removeEntity(ix){
+  const en=entities[ix];
+  const used=entities.some(e=>e!==en&&e.fields.some(f=>f.type==="Reference"&&f.opts.entity===en.name));
+  if(used&&!confirm('Other entities reference "'+en.name+'" — remove anyway?')) return;
+  entities.splice(ix,1);
+  activeEnt=Math.min(Math.max(0,ix-1),entities.length-1);
+  fields=curEnt().fields; syncToolbar(); render();
+}
+
 /* ---------- Render ---------- */
 const $fields=$("fields");
 let dragIdx=null;
 function render(){
+  renderTabs();
+  $("btn-download-all").style.display=entities.length>1?"":"none";
   $fields.innerHTML="";
   fields.forEach((f,idx)=>{
     const row=document.createElement("div");
@@ -555,7 +684,14 @@ function render(){
     });
     row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);render();});
     row.querySelectorAll("[data-opt]").forEach(el=>{
-      el.addEventListener("input",e=>{f.opts[e.target.dataset.opt]=e.target.value;schedule();});
+      el.addEventListener("input",e=>{
+        f.opts[e.target.dataset.opt]=e.target.value;
+        if(e.target.dataset.opt==="entity"){f.opts.field="";render();return;}
+        schedule();
+      });
+    });
+    row.querySelectorAll("[data-optchk]").forEach(el=>{
+      el.addEventListener("change",e=>{f.opts[e.target.dataset.optchk]=e.target.checked?"1":"";schedule();});
     });
     const handle=row.querySelector(".drag");
     handle.addEventListener("mousedown",()=>row.draggable=true);
@@ -672,10 +808,17 @@ function xescView(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace
 const $status=$("status");
 function setStatus(msg,cls){$status.textContent=msg;$status.className="status"+(cls?" "+cls:"");}
 let fmt="json";
-function serializeRows(rows){
-  if(fmt==="xml") return {out:toXml(rows,$("rootEl").value||"records",$("recEl").value||"record"),mime:"application/xml",ext:"xml"};
+function serializeRows(rows,en){
+  if(fmt==="xml") return {out:toXml(rows,en.root||"records",en.record||"record"),mime:"application/xml",ext:"xml"};
   if(fmt==="json") return {out:toJson(rows),mime:"application/json",ext:"json"};
   return {out:toCsv(rows),mime:"text/csv",ext:"csv"};
+}
+function slug(name){return String(name).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"data";}
+function saveBlob(out,mime,filename){
+  const blob=new Blob([out],{type:mime});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  URL.revokeObjectURL(a.href);
 }
 let _schedT=null;
 function schedule(){clearTimeout(_schedT);_schedT=setTimeout(refresh,450);}
@@ -687,11 +830,24 @@ function refresh(){
     return;
   }
   try{
-    const {rows,errors,seed}=generateRows(5);
-    const {out}=serializeRows(rows);
+    /* generate every entity so references resolve; parents sampled at up to
+       500 rows for a fast preview, the active tab at 5 shown rows */
+    const {results,errors,seed,registry}=runAll(en=>en===curEnt()?Math.min(entRowCount(en),5):Math.min(entRowCount(en),500));
+    const rows=results.find(x=>x.en===curEnt()).rows;
+    /* the 5-row preview can't exhaust a unique reference, so check counts statically */
+    for(const f of curEnt().fields){
+      if(f.type!=="Reference"||f.opts.unique!=="1"||!f.opts.entity||!f.opts.field) continue;
+      const src=entities.find(e=>e.name===f.opts.entity); if(!src) continue;
+      const pool=(registry[f.opts.entity]||{})[f.opts.field]||[];
+      const gen=Math.min(entRowCount(src),500);
+      const poolFull=gen?Math.round(pool.length*entRowCount(src)/gen):0;
+      if(entRowCount(curEnt())>poolFull&&errors.length<5)
+        errors.push("'"+f.name+"' unique: "+entRowCount(curEnt())+" rows here but only ~"+poolFull+" "+f.opts.entity+"."+f.opts.field+" values — extra rows will be #REF");
+    }
+    const {out}=serializeRows(rows,curEnt());
     const pre=$("preview");
     pre.innerHTML=fmt==="xml"?hlXml(out):fmt==="json"?hlJson(out):xescView(out);
-    $("prev-count").textContent="· 5 of "+($("rows").value||100)+" · seed "+seed;
+    $("prev-count").textContent="· "+rows.length+" of "+entRowCount(curEnt())+" · seed "+seed;
     const flat=rows[0].flat;
     document.querySelectorAll(".field-row").forEach((el,i)=>{
       const f=fields[i]; if(!f) return;
@@ -699,7 +855,7 @@ function refresh(){
       if(Array.isArray(v)) v="["+v.slice(0,3).join(", ")+(v.length>3?", …":"")+"]";
       el.querySelector("[data-sample]").textContent=v===undefined?" ":String(v);
     });
-    setStatus(errors.length?("Formula errors: "+errors.join(" | ")):"Preview refreshed.",errors.length?"err":"ok");
+    setStatus(errors.length?errors.join(" | "):"Preview refreshed.",errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 }
 
@@ -712,7 +868,11 @@ $("fmt-seg").querySelectorAll("button").forEach(b=>{
     refresh();
   });
 });
-["rows","seed","rootEl","recEl"].forEach(id=>$(id).addEventListener("input",schedule));
+$("seed").addEventListener("input",schedule);
+[["rows","rows"],["rootEl","root"],["recEl","record"]].forEach(([id,k])=>{
+  $(id).addEventListener("input",e=>{curEnt()[k]=e.target.value;schedule();});
+  $(id).addEventListener("change",()=>renderTabs());
+});
 $("btn-preview").addEventListener("click",refresh);
 $("btn-copy").addEventListener("click",()=>{
   const txt=$("preview").textContent;
@@ -726,35 +886,47 @@ $("btn-copy").addEventListener("click",()=>{
 });
 $("btn-download").addEventListener("click",()=>{
   if(!fields.length){setStatus("Add at least one field first.","err");return;}
-  const n=Math.min(Math.max(parseInt($("rows").value)||10,1),10000);
   try{
-    const {rows,errors}=generateRows(n);
-    const {out,mime,ext}=serializeRows(rows);
-    const blob=new Blob([out],{type:mime});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);a.download="test-data."+ext;a.click();
-    URL.revokeObjectURL(a.href);
-    setStatus(errors.length?("Downloaded with formula errors: "+errors.join(" | ")):("Downloaded "+n+" records."),errors.length?"err":"ok");
+    const {results,errors}=runAll(entRowCount);
+    const r=results.find(x=>x.en===curEnt());
+    const {out,mime,ext}=serializeRows(r.rows,r.en);
+    saveBlob(out,mime,slug(r.en.name)+"."+ext);
+    setStatus(errors.length?("Downloaded with errors: "+errors.join(" | ")):("Downloaded "+r.rows.length+" "+r.en.name+" records."),errors.length?"err":"ok");
+  }catch(e){setStatus("Error: "+e.message,"err");}
+});
+$("btn-download-all").addEventListener("click",()=>{
+  try{
+    const {results,errors}=runAll(entRowCount);
+    results.forEach((r,ix)=>{
+      const {out,mime,ext}=serializeRows(r.rows,r.en);
+      setTimeout(()=>saveBlob(out,mime,slug(r.en.name)+"."+ext),ix*300);
+    });
+    setStatus(errors.length?("Downloaded with errors: "+errors.join(" | ")):("Downloading "+results.length+" files — allow multiple downloads if the browser asks."),errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 });
 $("btn-add").addEventListener("click",()=>{fields.push(newField());render();});
 $("btn-example").addEventListener("click",()=>{
-  fields=[
+  const acc=newEntity("Accounts"); acc.rows="20"; acc.root="accounts"; acc.record="account";
+  acc.fields=[
+    newField("id","Formula (JS)",{expr:"'001' + Array.from({length: 12}, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[rand(0, 61)]).join('')"}),
+    newField("name","Company"),
+    newField("industry","Custom List",{values:"Technology, Healthcare, Retail, Finance, Energy"}),
+    newField("city","City")
+  ];
+  const con=newEntity("Contacts"); con.rows="100"; con.root="contacts"; con.record="contact";
+  con.fields=[
     newField("first_name","First Name"),
     newField("last_name","Last Name"),
-    newField("username","Formula (JS)",{expr:"(field('first_name')+'.'+field('last_name')).toLowerCase()"}),
     newField("email","Email"),
-    newField("address.city","City"),
-    newField("address.@state","State Abbr"),
-    newField("orders.order[1-3].sku","Faker (any)",{method:"commerce.isbn"}),
-    newField("orders.order[1-3].qty","Number",{min:"1",max:"10",decimals:"0"}),
-    newField("total","Formula (JS)",{expr:"rand(2000,40000)/100"})
+    newField("account_id","Reference",{entity:"Accounts",field:"id",unique:""}),
+    newField("title","Job Title")
   ];
-  render();setStatus("Example schema loaded.","ok");
+  entities=[acc,con]; activeEnt=1; fields=curEnt().fields; syncToolbar();
+  render();setStatus("Example loaded — Contacts pick their account_id from generated Account ids.","ok");
 });
 $("btn-export").addEventListener("click",()=>{
-  const schema={root:$("rootEl").value,record:$("recEl").value,
-    fields:fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))};
+  const schema={version:2,entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,
+    fields:en.fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))}))};
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
   URL.revokeObjectURL(a.href);
@@ -767,15 +939,29 @@ $("file-import").addEventListener("change",e=>{
   rd.onload=()=>{
     try{
       const data=JSON.parse(rd.result);
-      const list=Array.isArray(data)?data:data.fields;
-      if(!Array.isArray(list)) throw new Error("Expected {fields:[...]} or an array of fields");
-      fields=list.map(f=>{
+      const mkFields=list=>list.map(f=>{
         const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
         return newField(f.name||"field",type,f.opts||{});
       });
-      if(data.root)$("rootEl").value=data.root;
-      if(data.record)$("recEl").value=data.record;
-      render();setStatus("Imported "+fields.length+" fields.","ok");
+      if(Array.isArray(data.entities)){                     // v2: multi-entity
+        entities=data.entities.map(e=>{
+          const en=newEntity(e.name);
+          en.rows=String(e.rows??"100"); en.root=e.root||"records"; en.record=e.record||"record";
+          en.fields=mkFields(Array.isArray(e.fields)?e.fields:[]);
+          return en;
+        });
+        if(!entities.length) entities=[newEntity("Records")];
+        activeEnt=0; fields=curEnt().fields; syncToolbar();
+        render();setStatus("Imported "+entities.length+" entit"+(entities.length===1?"y":"ies")+".","ok");
+      }else{                                               // v1: single schema
+        const list=Array.isArray(data)?data:data.fields;
+        if(!Array.isArray(list)) throw new Error("Expected {entities:[...]}, {fields:[...]} or an array of fields");
+        curEnt().fields=fields=mkFields(list);
+        if(data.root)curEnt().root=data.root;
+        if(data.record)curEnt().record=data.record;
+        syncToolbar();
+        render();setStatus("Imported "+fields.length+" fields.","ok");
+      }
     }catch(err){setStatus("Import failed: "+err.message,"err");}
   };
   rd.readAsText(file);
@@ -793,6 +979,7 @@ $("type-q").placeholder="Search "+(TYPE_NAMES.length+FAKER_METHODS.length)+" typ
 $("xml-names").style.display="none";
 document.querySelector('#fmt-seg [data-fmt=json]').classList.add("on");
 if(!HAS_FAKER) setStatus("Faker not loaded — using built-in sample pools. See README to vendor faker.js locally.","err");
+entities=[newEntity("Records")]; fields=curEnt().fields; syncToolbar();
 $("btn-example").click();
 refresh();
 </script>

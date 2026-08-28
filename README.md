@@ -33,6 +33,15 @@ Export/import uses this JSON shape:
 
 ```json
 {
+  "version": 2,
+  "entities": [{ "name": "Records", "rows": "100", "root": "records", "record": "record", "fields": [ ... ] }]
+}
+```
+
+Older single-entity files still import:
+
+```json
+{
   "root": "records",
   "record": "record",
   "fields": [
@@ -52,7 +61,9 @@ Keep one schema file per data model and import whichever you need.
 
 Each field is a card: name on top, type picker right below (click it and type to search), and options underneath. Cards can be dragged to reorder and duplicated in one click, and each shows a live sample value. The preview updates as you edit (Ctrl/Cmd+Enter refreshes on demand) and has a copy button.
 
-The full guide — every field type, structure syntax, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
+Need linked record types — Contacts pointing at real Account ids? Add an **entity tab** per record type; tabs generate left-to-right in one run, and a **Reference** field on the child picks from the values a parent entity actually produced (random many-to-one, or `unique` for one-to-one). *Download all* saves one file per entity from a single run, so IDs line up across files, and a seed reproduces the whole linked dataset.
+
+The full guide — every field type, structure syntax, linked entities, and ready-made formula recipes — ships with the app as [docs.html](docs.html).
 
 ## Field naming
 

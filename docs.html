@@ -71,7 +71,7 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
   press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
-    <a href="#structure">Nesting &amp; repeats</a>
+    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a>
     <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a>
   </div>
 </div>
@@ -108,6 +108,33 @@ orders.order[1-3].qty</code></pre>
 ] }</code></pre>
   <p class="dim">One repeating segment per field path. In CSV, nested names become the column header and repeated
   values are joined with <code>|</code>.</p>
+</div>
+
+<div class="card" id="entities">
+  <h2>Linked entities (referential integrity)</h2>
+  <p>When you need separate files that join by ID — Accounts and the Contacts that point at them — add an
+  <b>entity tab</b> per record type. Each tab has its own fields, row count, and (for XML) element names.</p>
+  <p><b>Generation order is tab order, left to right, in one run.</b> Parents generate first, then children pick
+  from the values the parents actually produced — so every run, and every download, is internally consistent.
+  Use the <code>&#8249;</code> <code>&#8250;</code> arrows on the active tab to reorder, and rename a tab in place.</p>
+  <h3>The Reference field</h3>
+  <p>On the child, give the linking field the <b>Reference</b> type and pick the source entity and field:</p>
+  <pre><code>Contacts &#183; account_id
+  Reference &#8594; from: Accounts &#183; field: id</code></pre>
+  <ul>
+    <li><b>Default:</b> each child picks a random parent value — a natural many-to-one (several Contacts per Account).</li>
+    <li><b>unique:</b> each parent value is used at most once — a one-to-one link. If the child has more rows than
+    the parent has values, the extra rows come out as <code>#REF</code> and the status bar warns you before you download.</li>
+  </ul>
+  <p>A Reference may only point at a tab to its <em>left</em> (parents must exist first); anything else produces
+  <code>#REF</code> with an explanation in the status bar. Formulas on the child can read the reference like any other
+  field — e.g. <code>field('account_id') + '-' + field('id')</code> for a compound key.</p>
+  <h3>Downloading</h3>
+  <p><b>Download</b> saves the active tab's file; <b>Download all</b> saves one file per entity
+  (<code>accounts.csv</code>, <code>contacts.csv</code>, &hellip;) from a single generation run, so the IDs line up
+  across files. With a seed set, the entire linked dataset is reproducible.</p>
+  <p class="dim">The live preview samples parent values from each parent's first 500 rows to stay fast; downloads
+  always generate full row counts.</p>
 </div>
 
 <div class="card" id="formulas">
@@ -234,15 +261,23 @@ rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
   <h2>Schema files</h2>
   <p><b>Export schema</b> saves your setup as JSON; <b>Import schema</b> loads it back. Keep one file per data model.</p>
   <pre><code>{
-  <span class="kv">"root"</span>: "records",          <span class="cm">// XML root element</span>
-  <span class="kv">"record"</span>: "record",         <span class="cm">// XML per-row element</span>
-  <span class="kv">"fields"</span>: [
-    { "name": "first_name", "type": "First Name", "opts": {} },
-    { "name": "iban", "type": "Faker (any)", "opts": { "method": "finance.iban" } },
-    { "name": "username", "type": "Formula (JS)",
-      "opts": { "expr": "(field('first_name')).toLowerCase()" } }
+  <span class="kv">"version"</span>: 2,
+  <span class="kv">"entities"</span>: [
+    { "name": "Accounts", "rows": "20", "root": "accounts", "record": "account",
+      "fields": [
+        { "name": "id", "type": "UUID", "opts": {} },
+        { "name": "name", "type": "Company", "opts": {} }
+      ] },
+    { "name": "Contacts", "rows": "100", "root": "contacts", "record": "contact",
+      "fields": [
+        { "name": "first_name", "type": "First Name", "opts": {} },
+        { "name": "account_id", "type": "Reference",
+          "opts": { "entity": "Accounts", "field": "id", "unique": "" } }
+      ] }
   ]
 }</code></pre>
+  <p class="dim">Older single-entity schema files (<code>{"root", "record", "fields": [&hellip;]}</code>) still import
+  — they load as one entity.</p>
   <p class="dim">Limits: 10,000 rows per download (a browser-memory guardrail) and one repeating segment per field path.</p>
 </div>
 
