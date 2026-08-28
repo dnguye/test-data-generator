@@ -86,6 +86,8 @@ h1 span{color:var(--accent)}
 .tb-group input{font-family:var(--mono);font-size:.8rem}
 #xml-names input{width:96px}
 #dupPct,#dupMax{width:54px}
+.sim-row select{flex:1;min-width:0}
+.sim-row input{width:74px;flex:0 0 auto}
 .tb-sep{width:1px;height:22px;background:var(--line)}
 .spacer{flex-grow:1}
 .status{font-family:var(--mono);font-size:.68rem;color:var(--muted);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -179,7 +181,7 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
   <div class="tb-sep"></div>
   <div class="tb-group">
     <label for="dupLevel" title="Emit fuzzed duplicate variants of some records, for testing matching / dedup">dups</label>
-    <select id="dupLevel"><option value="off">off</option><option value="light">light</option><option value="medium">medium</option><option value="heavy">heavy</option></select>
+    <select id="dupLevel"><option value="off">off</option><option value="light">light</option><option value="medium">medium</option><option value="heavy">heavy</option><option value="targeted">targeted</option></select>
     <span id="dup-opts" class="tb-group" style="display:none">
       <input type="number" id="dupPct" min="1" max="100" value="20" title="% of records that get duplicate variants" aria-label="Duplicate percent"><label for="dupPct">%</label>
       <label for="dupMax" title="max variants per duplicated record">&times;</label><input type="number" id="dupMax" min="1" max="5" value="2" aria-label="Max variants per record">
@@ -542,6 +544,74 @@ function toCsv(rows){
   return lines.join("\n");
 }
 
+/* ---------- Similarity metrics (dependency-free) ---------- */
+function jaroWinkler(a,b){
+  a=String(a);b=String(b);
+  if(a===b) return 1;
+  const la=a.length,lb=b.length;
+  if(!la||!lb) return 0;
+  const md=Math.max(0,Math.floor(Math.max(la,lb)/2)-1);
+  const am=new Array(la).fill(false),bm=new Array(lb).fill(false);
+  let m=0;
+  for(let i=0;i<la;i++){
+    for(let j=Math.max(0,i-md);j<Math.min(lb,i+md+1);j++){
+      if(!bm[j]&&a[i]===b[j]){am[i]=bm[j]=true;m++;break;}
+    }
+  }
+  if(!m) return 0;
+  let t=0,k=0;
+  for(let i=0;i<la;i++) if(am[i]){while(!bm[k])k++;if(a[i]!==b[k])t++;k++;}
+  const j=(m/la+m/lb+(m-t/2)/m)/3;
+  let l=0; while(l<4&&l<la&&l<lb&&a[l]===b[l])l++;
+  return j+l*0.1*(1-j);
+}
+function levSim(a,b){
+  a=String(a);b=String(b);
+  const la=a.length,lb=b.length;
+  if(!la&&!lb) return 1;
+  let prev=Array.from({length:lb+1},(_,j)=>j);
+  for(let i=1;i<=la;i++){
+    const cur=[i];
+    for(let j=1;j<=lb;j++)
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return 1-prev[lb]/Math.max(la,lb);
+}
+const SIM_FNS={jw:jaroWinkler,lev:levSim};
+
+/* One small seeded edit; replacement characters match the string's alphabet. */
+function editOnce(s){
+  s=String(s); if(!s.length) return "x";
+  const pool=/^[0-9\s().,+-]*$/.test(s)?"0123456789":"abcdefghijklmnopqrstuvwxyz";
+  const ch=pool[randint(0,pool.length-1)];
+  const i=randint(0,s.length-1), op=randint(0,3);
+  if(op===0&&s.length>1){const j=Math.min(i,s.length-2);return s.slice(0,j)+s[j+1]+s[j]+s.slice(j+2);}
+  if(op===1&&s.length>2) return s.slice(0,i)+s.slice(i+1);
+  if(op===2) return s.slice(0,i)+ch+s.slice(i+1);
+  const k=randint(0,s.length);
+  return s.slice(0,k)+ch+s.slice(k);
+}
+/* Degrade s0 one edit at a time until similarity lands in a band around the
+   target; on overshoot restart from the original; return the closest found.
+   Similarity is quantized (short strings take coarse steps), so this is
+   best-effort — the preview reports what was actually achieved. */
+function corruptToTarget(s0,algo,target){
+  s0=String(s0);
+  const sim=SIM_FNS[algo]||jaroWinkler, tol=0.02;
+  if(!s0.length||target>=0.995) return s0;
+  let cur=s0, best=s0, bestGap=1-target;
+  for(let it=0;it<80;it++){
+    const cand=editOnce(cur);
+    const cs=sim(s0,cand);
+    if(cs>=target-tol&&cs<=target+tol) return cand;
+    const gap=Math.abs(cs-target);
+    if(gap<bestGap){best=cand;bestGap=gap;}
+    cur=cs>target?cand:s0;
+  }
+  return best;
+}
+
 /* ---------- Duplicate variants (for testing matching / dedup) ----------
    A fraction of records get fuzzed copies; original and copies share a
    match_id so a matcher's output can be scored against ground truth. */
@@ -613,6 +683,16 @@ function damageRow(en,flat,lvl){
   /* a duplicate is a distinct system record: regenerate its system identifiers */
   for(const f of en.fields) if(fieldKind(f)==="uuid")
     c[f.name]=Array.isArray(c[f.name])?c[f.name].map(()=>uuid()):uuid();
+  if(lvl==="targeted"){
+    for(const f of en.fields){
+      if(!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid") continue;
+      const t=Math.min(Math.max(parseFloat(f.sim.target)||0.9,0.5),1);
+      const v=c[f.name];
+      if(Array.isArray(v)) c[f.name]=v.map(x=>x===null||x===undefined||x===""?x:corruptToTarget(x,f.sim.algo,t));
+      else if(v!==undefined&&v!==null&&v!=="") c[f.name]=corruptToTarget(v,f.sim.algo,t);
+    }
+    return c;
+  }
   const cand=en.fields.filter(f=>{
     const k=fieldKind(f);
     if(k==="keep"||k==="uuid") return false;
@@ -648,7 +728,7 @@ function applyDuplicates(en,rows){
       for(let k=0;k<n;k++){
         const c=damageRow(en,r.flat,lvl);
         c.match_id=mid;
-        out.push({flat:c,parsed});
+        out.push({flat:c,parsed,base:r.flat});
       }
     }
   });
@@ -718,6 +798,20 @@ function optsUI(f){
   });
   if(f.type==="Number"||f.type==="Date") return `<div class="opt-row">${inputs.join("")}</div>`;
   return inputs.join("");
+}
+function simUI(f){
+  if((curEnt().dupLevel||"off")!=="targeted") return "";
+  const kind=fieldKind(f);
+  if(kind==="keep"||kind==="uuid") return "";
+  const sim=f.sim||{algo:"",target:"0.90"};
+  return `<div class="opt-row sim-row">
+    <select data-sim="algo" aria-label="Similarity algorithm">
+      <option value="">exact copy in variants</option>
+      <option value="jw"${sim.algo==="jw"?" selected":""}>Jaro-Winkler &asymp;</option>
+      <option value="lev"${sim.algo==="lev"?" selected":""}>Levenshtein &asymp;</option>
+    </select>
+    <input type="number" data-sim="target" min="0.5" max="1" step="0.01" value="${escAttr(sim.target||"0.90")}" aria-label="Target similarity"${sim.algo?"":' style="display:none"'}>
+  </div>`;
 }
 function optHint(f){
   if(f.type==="Formula (JS)") return "JS expression · field('name') reads other fields";
@@ -805,7 +899,7 @@ function render(){
         </div>
       </div>
       <button class="type-btn${f.type==="Faker (any)"?" is-faker":""}" data-act="type" title="Change type"><span class="t-label">${escHtml(typeLabel(f))}</span>${ICONS.chev}</button>
-      ${optsHtml}${hint?`<div class="hint">${hint}</div>`:""}
+      ${optsHtml}${simUI(f)}${hint?`<div class="hint">${hint}</div>`:""}
       <span class="sample" data-sample>&nbsp;</span>`;
     row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;schedule();});
     row.querySelector('[data-k=name]').addEventListener("change",()=>render());
@@ -824,6 +918,14 @@ function render(){
     });
     row.querySelectorAll("[data-optchk]").forEach(el=>{
       el.addEventListener("change",e=>{f.opts[e.target.dataset.optchk]=e.target.checked?"1":"";schedule();});
+    });
+    row.querySelectorAll("[data-sim]").forEach(el=>{
+      el.addEventListener(el.tagName==="SELECT"?"change":"input",e=>{
+        f.sim=f.sim||{algo:"",target:"0.90"};
+        f.sim[e.target.dataset.sim]=e.target.value;
+        if(e.target.dataset.sim==="algo"){render();return;}
+        schedule();
+      });
     });
     const handle=row.querySelector(".drag");
     handle.addEventListener("mousedown",()=>row.draggable=true);
@@ -987,7 +1089,22 @@ function refresh(){
       if(Array.isArray(v)) v="["+v.slice(0,3).join(", ")+(v.length>3?", …":"")+"]";
       el.querySelector("[data-sample]").textContent=v===undefined?" ":String(v);
     });
-    setStatus(errors.length?errors.join(" | "):"Preview refreshed.",errors.length?"err":"ok");
+    let ok="Preview refreshed.";
+    if(!errors.length&&(curEnt().dupLevel||"off")==="targeted"){
+      const stats={};
+      for(const r of rows){
+        if(!r.base) continue;
+        for(const f of curEnt().fields){
+          if(!f.sim||!f.sim.algo) continue;
+          const a=r.base[f.name], b=r.flat[f.name];
+          if(a===undefined||b===undefined||Array.isArray(a)||Array.isArray(b)) continue;
+          (stats[f.name]=stats[f.name]||[]).push((SIM_FNS[f.sim.algo]||jaroWinkler)(String(a),String(b)));
+        }
+      }
+      const parts=Object.entries(stats).map(([k,v])=>k+" "+(v.reduce((x,y)=>x+y,0)/v.length).toFixed(3));
+      if(parts.length) ok="Achieved similarity: "+parts.join(" · ");
+    }
+    setStatus(errors.length?errors.join(" | "):ok,errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 }
 
@@ -1001,7 +1118,7 @@ $("fmt-seg").querySelectorAll("button").forEach(b=>{
   });
 });
 $("seed").addEventListener("input",schedule);
-$("dupLevel").addEventListener("change",e=>{curEnt().dupLevel=e.target.value;syncDupVis();schedule();});
+$("dupLevel").addEventListener("change",e=>{curEnt().dupLevel=e.target.value;syncDupVis();render();});
 [["rows","rows"],["rootEl","root"],["recEl","record"],["dupPct","dupPct"],["dupMax","dupMax"]].forEach(([id,k])=>{
   $(id).addEventListener("input",e=>{curEnt()[k]=e.target.value;schedule();});
   $(id).addEventListener("change",()=>renderTabs());
@@ -1059,7 +1176,7 @@ $("btn-example").addEventListener("click",()=>{
 });
 $("btn-export").addEventListener("click",()=>{
   const schema={version:2,entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
-    fields:en.fields.map(f=>({name:f.name,type:f.type,opts:f.opts}))}))};
+    fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{}))}))};
   const blob=new Blob([JSON.stringify(schema,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="schema.json";a.click();
   URL.revokeObjectURL(a.href);
@@ -1074,13 +1191,15 @@ $("file-import").addEventListener("change",e=>{
       const data=JSON.parse(rd.result);
       const mkFields=list=>list.map(f=>{
         const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
-        return newField(f.name||"field",type,f.opts||{});
+        const nf=newField(f.name||"field",type,f.opts||{});
+        if(f.sim&&["jw","lev"].includes(f.sim.algo)) nf.sim={algo:f.sim.algo,target:String(f.sim.target??"0.90")};
+        return nf;
       });
       if(Array.isArray(data.entities)){                     // v2: multi-entity
         entities=data.entities.map(e=>{
           const en=newEntity(e.name);
           en.rows=String(e.rows??"100"); en.root=e.root||"records"; en.record=e.record||"record";
-          en.dupLevel=["light","medium","heavy"].includes(e.dupLevel)?e.dupLevel:"off";
+          en.dupLevel=["light","medium","heavy","targeted"].includes(e.dupLevel)?e.dupLevel:"off";
           en.dupPct=String(e.dupPct??"20"); en.dupMax=String(e.dupMax??"2");
           en.fields=mkFields(Array.isArray(e.fields)?e.fields:[]);
           return en;

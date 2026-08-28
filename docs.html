@@ -154,9 +154,23 @@ orders.order[1-3].qty</code></pre>
     <tr><td>light</td><td>1</td><td>case changes and stray whitespace only — trivially matchable</td></tr>
     <tr><td>medium</td><td>1&ndash;2</td><td>typos (transpose / drop / double a letter), email local-part fuzz, phone reformatting, date &plusmn;1 day, a wrong digit in a zip</td></tr>
     <tr><td>heavy</td><td>2&ndash;3</td><td>everything above, plus double typos, blanked values, transposed month/day, numbers &plusmn;1</td></tr>
+    <tr><td>targeted</td><td>your choice</td><td>per-field similarity thresholds — see <i>Targeted similarity</i> below</td></tr>
   </table>
   <p>Damage is chosen by field type, so a phone gets reformatted rather than misspelled and a date shifts by a day
   rather than gaining a letter.</p>
+  <h3>Targeted similarity</h3>
+  <p>The presets make records messy; the <b>targeted</b> level makes them <em>exactly this hard to match</em>.
+  Choose <code>dups: targeted</code> and each field card gains a similarity control:</p>
+  <pre><code>address   [ Jaro-Winkler &asymp; ]  [ 0.90 ]
+name      [ exact copy in variants ]</code></pre>
+  <p>A variant's targeted field is fuzzed until its similarity to the original lands as close as possible to the
+  threshold under the chosen algorithm — <b>Jaro-Winkler</b> or <b>Levenshtein</b> (normalized) — while every field
+  left at <i>exact copy</i> is copied unchanged. That lets you generate pairs right at your matcher's threshold:
+  a batch at 0.92 that should match and a batch at 0.80 that shouldn't.</p>
+  <p>Similarity is quantized — each character edit moves the score in steps, and a short value like <code>TX</code>
+  can't land on an arbitrary number — so the engine gets as close as it can and the <b>status bar reports the
+  achieved average per field</b> (e.g. <code>address 0.897</code>) as the preview refreshes. In testing, targets of
+  0.75&ndash;0.90 on realistic names and addresses land within &plusmn;0.03 essentially always.</p>
   <h3>What stays intact</h3>
   <ul>
     <li><b>UUID fields regenerate</b> on each variant — a duplicate is a distinct system record with its own ID.</li>
