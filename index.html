@@ -170,6 +170,8 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .bind-row label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
 .bind-row select{width:100%;font-size:.8rem}
 .bind-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
+.bind-name{width:100%;font-size:.8rem}
+.bind-name[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -1188,7 +1190,8 @@ function insertRecipe(r,chosen){
     if(pick&&pick!=="__create__") f=fields.find(x=>x.name===pick);
     if(!f&&pick!=="__create__") f=bindInput(inp);
     if(!f){
-      f=newField(uniqueFieldName(inp.name,taken),inp.type,inp.opts);
+      const want=(chosen&&chosen.__names&&chosen.__names[inp.role]||"").trim()||inp.name;
+      f=newField(uniqueFieldName(want,taken),inp.type,inp.opts);
       fields.push(f); createdNames.push(f.name);
     }
     bound[inp.role]=f.name;
@@ -1215,14 +1218,15 @@ function insertCrossEntity(r,chosen){
   }
   const ptaken=new Set();
   const puniq=b=>{let n=b,i=2;while(parent.fields.some(f=>f.name.trim()===n)||ptaken.has(n))n=b+"_"+(i++);ptaken.add(n);return n;};
+  const wantName=(role,dflt)=>((chosen&&chosen.__names&&chosen.__names[role]||"").trim()||dflt);
   const pickP=(role,auto,mk)=>{
     const c=chosen?chosen[role]:undefined;
     if(c&&c!=="__create__"){const f=parent.fields.find(x=>x.name===c);if(f)return f;}
     if(c!=="__create__"&&auto) return auto;
     return mk();
   };
-  const pid=pickP("pid",crossAutoPid(parent),()=>{const f=newField(puniq("id"),"UUID");parent.fields.push(f);return f;});
-  const pname=pickP("pname",crossAutoPname(parent),()=>{const f=newField(puniq("name"),"Company");parent.fields.push(f);return f;});
+  const pid=pickP("pid",crossAutoPid(parent),()=>{const f=newField(puniq(wantName("pid","id")),"UUID");parent.fields.push(f);return f;});
+  const pname=pickP("pname",crossAutoPname(parent),()=>{const f=newField(puniq(wantName("pname","name")),"Company");parent.fields.push(f);return f;});
   const key=newField(puniq("key"),"Formula (JS)",{expr:"field('"+pid.name+"') + '|' + field('"+pname.name+"')"});
   parent.fields.push(key);
   const taken=new Set();
@@ -1246,14 +1250,17 @@ function renderBindView(r){
     if(!parent){closeRecipes();insertRecipe(r);return;}
     const aid=crossAutoPid(parent), aname=crossAutoPname(parent);
     rows=`<div class="bind-row"><label>${escHtml(parent.name)} · id field</label>
-      <select data-role="pid"><option value="__create__"${aid?"":" selected"}>+ create "id" (UUID)</option>${parent.fields.map(f=>fieldOption(f,aid?aid.name:null)).join("")}</select></div>
+      <select data-role="pid"><option value="__create__"${aid?"":" selected"}>+ create new&hellip; (UUID)</option>${parent.fields.map(f=>fieldOption(f,aid?aid.name:null)).join("")}</select>
+      <input type="text" class="bind-name" data-name-for="pid" value="id" aria-label="New field name"${aid?" hidden":""}></div>
     <div class="bind-row"><label>${escHtml(parent.name)} · name field</label>
-      <select data-role="pname"><option value="__create__"${aname?"":" selected"}>+ create "name" (Company)</option>${parent.fields.map(f=>fieldOption(f,aname?aname.name:null)).join("")}</select></div>`;
+      <select data-role="pname"><option value="__create__"${aname?"":" selected"}>+ create new&hellip; (Company)</option>${parent.fields.map(f=>fieldOption(f,aname?aname.name:null)).join("")}</select>
+      <input type="text" class="bind-name" data-name-for="pname" value="name" aria-label="New field name"${aname?" hidden":""}></div>`;
   }else{
     rows=(r.inputs||[]).map(inp=>{
       const auto=bindInput(inp);
       return `<div class="bind-row"><label>${escHtml(inp.role)} &#8594; link to</label>
-        <select data-role="${escAttr(inp.role)}"><option value="__create__"${auto?"":" selected"}>+ create "${escHtml(inp.name)}" (${escHtml(inp.type)})</option>${fields.map(f=>fieldOption(f,auto?auto.name:null)).join("")}</select></div>`;
+        <select data-role="${escAttr(inp.role)}"><option value="__create__"${auto?"":" selected"}>+ create new&hellip; (${escHtml(inp.type)})</option>${fields.map(f=>fieldOption(f,auto?auto.name:null)).join("")}</select>
+        <input type="text" class="bind-name" data-name-for="${escAttr(inp.role)}" value="${escAttr(inp.name)}" aria-label="New field name"${auto?" hidden":""}></div>`;
     }).join("");
   }
   $("recipe-list").innerHTML=`<div class="bind-wrap">
@@ -1265,10 +1272,17 @@ function renderBindView(r){
       <button type="button" class="primary" id="bind-insert">Insert</button>
     </div>
   </div>`;
+  $("recipe-list").querySelectorAll("select[data-role]").forEach(sel=>{
+    sel.addEventListener("change",()=>{
+      const ni=$("recipe-list").querySelector('input[data-name-for="'+sel.dataset.role+'"]');
+      if(ni) ni.hidden=sel.value!=="__create__";
+    });
+  });
   $("bind-back").addEventListener("click",()=>renderRecipeList());
   $("bind-insert").addEventListener("click",()=>{
-    const chosen={};
+    const chosen={__names:{}};
     $("recipe-list").querySelectorAll("select[data-role]").forEach(sel=>{chosen[sel.dataset.role]=sel.value;});
+    $("recipe-list").querySelectorAll("input[data-name-for]").forEach(ni=>{chosen.__names[ni.dataset.nameFor]=ni.value;});
     closeRecipes();
     insertRecipe(r,chosen);
   });
