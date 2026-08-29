@@ -892,7 +892,7 @@ function simUI(f){
 }
 function optHint(f){
   if(f.type==="Formula (JS)") return "JS expression · field('name') reads other fields";
-  if(f.type==="Faker (any)") return "click the type to search the full catalog";
+  if(f.type==="Faker (any)") return "click the type bar above to browse or search all "+(TYPE_NAMES.length+FAKER_METHODS.length)+" types";
   if(f.type==="Reference") return entities.slice(0,activeEnt).length?"picks values already generated for that entity":"";
   if(f.type==="Custom List") return "comma-separated values";
   if(f.type==="Number") return "min · max · decimals";
@@ -1042,7 +1042,10 @@ function openTypePicker(f,anchor){
   $("type-q").focus();
 }
 function closeTypePicker(){typePop.hidden=true;pickField=null;}
-const openGroups=new Set(["Built-in types"]);
+/* Every category starts collapsed so the picker opens onto the whole catalog
+   (50 groups with counts) rather than onto 24 built-ins that hide it. Expanding
+   a group sticks for the session; typing searches across all of them regardless. */
+const openGroups=new Set();
 function pickerGroups(){
   const groups=[["Built-in types",TYPE_NAMES.map(t=>({label:t,value:t,faker:false}))]];
   let mod=null,cur=null;
