@@ -160,6 +160,10 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .pop-it.act{background:var(--accent);color:#fff}
 .pop-it.act .s{color:#D9E1FD}
 .pop-more{font-size:.66rem;color:var(--muted);padding:7px 12px}
+.rec-it{padding:9px 13px;cursor:pointer}
+.rec-it:hover{background:var(--accent-soft)}
+.rec-it b{display:block;font-size:.8rem;font-weight:600}
+.rec-it span{font-size:.7rem;color:var(--muted)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -210,6 +214,7 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
       <h2>Schema <span id="fcount" class="cnt"></span></h2>
       <div class="tools">
         <button id="btn-example" class="ghost">Load example</button>
+        <button id="btn-recipes" class="ghost" title="Insert a pre-wired group of dependent fields">Recipes</button>
         <button id="btn-add" class="dashed">+ Add field</button>
       </div>
     </div>
@@ -236,6 +241,14 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
     </div>
   </section>
 </main>
+
+<div id="recipe-pop" class="pop" hidden>
+  <div class="pop-search">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8D87A6" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
+    <input id="recipe-q" placeholder="Search recipes&hellip;" aria-label="Search recipes">
+  </div>
+  <div id="recipe-list" class="pop-list"></div>
+</div>
 
 <div id="type-pop" class="pop" hidden>
   <div class="pop-search">
@@ -1096,6 +1109,143 @@ function scrollPickIntoView(){
   if(el)el.scrollIntoView({block:"nearest"});
 }
 
+/* ---------- Recipes: insert pre-wired dependent-field groups ----------
+   Templates are pure UI sugar: they insert ORDINARY fields (editable
+   formulas, normal schema entries). Inputs are roles bound to existing
+   fields when a match exists, created otherwise; ${role} placeholders in
+   expressions are rewritten to the bound field names. */
+const RECIPES=[
+ {id:"email",name:"Email from names",desc:"email derived from first + last name",
+  inputs:[{role:"first",type:"First Name",name:"first_name",match:{types:["First Name"],names:["first"]}},
+          {role:"last",type:"Last Name",name:"last_name",match:{types:["Last Name"],names:["last"]}}],
+  adds:[{name:"email",type:"Formula (JS)",opts:{expr:"(field('${first}') + '.' + field('${last}')).toLowerCase().replace(/[^a-z0-9.]/g,'') + '@acme-test.com'"}}]},
+ {id:"emailVaried",name:"Varied-shape emails",desc:"jdoe / jane.doe / jane_doe83 across domains",
+  inputs:[{role:"first",type:"First Name",name:"first_name",match:{types:["First Name"],names:["first"]}},
+          {role:"last",type:"Last Name",name:"last_name",match:{types:["Last Name"],names:["last"]}}],
+  adds:[{name:"email",type:"Formula (JS)",opts:{expr:"(()=>{ const f=String(field('${first}')).toLowerCase().replace(/[^a-z]/g,''); const l=String(field('${last}')).toLowerCase().replace(/[^a-z]/g,''); const forms=[f+'.'+l, f[0]+l, f+'_'+l+rand(1,99), l+'.'+f[0]]; const domains=['gmail.com','yahoo.com','outlook.com','acme-test.com']; return forms[rand(0,3)]+'@'+domains[rand(0,3)]; })()"}}]},
+ {id:"corpEmail",name:"Corporate email",desc:"name-derived local part @ company-derived domain",
+  inputs:[{role:"first",type:"First Name",name:"first_name",match:{types:["First Name"],names:["first"]}},
+          {role:"last",type:"Last Name",name:"last_name",match:{types:["Last Name"],names:["last"]}},
+          {role:"company",type:"Company",name:"company",match:{types:["Company"],names:["company"]}}],
+  adds:[{name:"email",type:"Formula (JS)",opts:{expr:"(field('${first}')+'.'+field('${last}')).toLowerCase().replace(/[^a-z0-9.]/g,'') + '@' + normalize(field('${company}')).slice(0,20) + '.com'"}}]},
+ {id:"username",name:"Username from names",desc:"lowercased first.last",
+  inputs:[{role:"first",type:"First Name",name:"first_name",match:{types:["First Name"],names:["first"]}},
+          {role:"last",type:"Last Name",name:"last_name",match:{types:["Last Name"],names:["last"]}}],
+  adds:[{name:"username",type:"Formula (JS)",opts:{expr:"(field('${first}')+'.'+field('${last}')).toLowerCase().replace(/[^a-z0-9.]/g,'')"}}]},
+ {id:"usGeo",name:"US geo: city / state / zip",desc:"consistent city, state, zip + area code from one source",
+  adds:[{role:"geo",name:"geo",type:"Custom List",opts:{values:"Springfield|IL|62701|217, Austin|TX|78701|512, Denver|CO|80202|303, Portland|OR|97201|503, Columbus|OH|43215|614"}},
+        {name:"city",type:"Formula (JS)",opts:{expr:"field('${geo}').split('|')[0]"}},
+        {name:"state",type:"Formula (JS)",opts:{expr:"field('${geo}').split('|')[1]"}},
+        {name:"zip",type:"Formula (JS)",opts:{expr:"field('${geo}').split('|')[2]"}}]},
+ {id:"phoneFax",name:"Phone + fax tied to city",desc:"area code from a geo source; fax shares the exchange",
+  inputs:[{role:"geo",type:"Custom List",name:"geo",match:{names:["geo"]},
+           opts:{values:"Springfield|IL|62701|217, Austin|TX|78701|512, Denver|CO|80202|303, Portland|OR|97201|503, Columbus|OH|43215|614"}}],
+  adds:[{role:"phone",name:"phone",type:"Formula (JS)",opts:{expr:"'(' + field('${geo}').split('|')[3] + ') ' + pad(rand(200,999),3) + '-' + pad(rand(0,9999),4)"}},
+        {name:"fax",type:"Formula (JS)",opts:{expr:"field('${phone}').slice(0,-4) + pad(rand(0,9999),4)"}}]},
+ {id:"intl",name:"International addresses",desc:"country-consistent city, postal format, phone prefix, currency",
+  adds:[{role:"intl",name:"intl",type:"Custom List",opts:{values:"United Kingdom|London|+44|GBP, Germany|Berlin|+49|EUR, Canada|Toronto|+1|CAD, Australia|Sydney|+61|AUD, Japan|Tokyo|+81|JPY, France|Paris|+33|EUR, Netherlands|Amsterdam|+31|EUR, Brazil|São Paulo|+55|BRL"}},
+        {role:"country",name:"country",type:"Formula (JS)",opts:{expr:"field('${intl}').split('|')[0]"}},
+        {name:"city",type:"Formula (JS)",opts:{expr:"field('${intl}').split('|')[1]"}},
+        {name:"postal",type:"Formula (JS)",opts:{expr:"(()=>{const c=field('${country}');const D=n=>pad(rand(0,Math.pow(10,n)-1),n);const L=()=>'ABCDEFGHJKLMNPRSTUVWXYZ'[rand(0,22)];switch(c){case 'United Kingdom':return L()+L()+rand(1,9)+' '+rand(1,9)+L()+L();case 'Canada':return L()+rand(0,9)+L()+' '+rand(0,9)+L()+rand(0,9);case 'Netherlands':return rand(1000,9999)+' '+L()+L();case 'Japan':return D(3)+'-'+D(4);case 'Brazil':return D(5)+'-'+D(3);case 'Australia':return pad(rand(800,7999),4);default:return D(5);}})()"}},
+        {name:"phone",type:"Formula (JS)",opts:{expr:"field('${intl}').split('|')[2] + ' ' + rand(10,99) + ' ' + pad(rand(0,9999),4) + ' ' + pad(rand(0,9999),4)"}},
+        {name:"currency",type:"Formula (JS)",opts:{expr:"field('${intl}').split('|')[3]"}}]},
+ {id:"dates",name:"Ordered dates",desc:"modified always 1\u201390 days after created",
+  adds:[{role:"created",name:"created",type:"Date",opts:{from:"2024-01-01",to:"2025-12-31",dateFormat:"YYYY-MM-DD"}},
+        {name:"modified",type:"Formula (JS)",opts:{expr:"(()=>{ const d=new Date(field('${created}')); d.setDate(d.getDate()+rand(1,90)); return d.toISOString().slice(0,10); })()"}}]},
+ {id:"age",name:"Age from birth date",desc:"dob + a consistent age (fixed as-of date)",
+  adds:[{role:"dob",name:"dob",type:"Date",opts:{from:"1960-01-01",to:"2004-12-31",dateFormat:"YYYY-MM-DD"}},
+        {name:"age",type:"Formula (JS)",opts:{expr:"Math.floor((new Date('2026-08-28') - new Date(field('${dob}'))) / 31557600000)"}}]},
+ {id:"sfid",name:"Salesforce-style ID",desc:"18-char ID with a valid case checksum",
+  adds:[{name:"sf_id",type:"Formula (JS)",opts:{expr:"(() => { const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; let id = '001'; for (let k = 0; k < 12; k++) id += chars[rand(0, 61)]; const map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'; let sfx = ''; for (let c = 0; c < 3; c++) { let b = 0; for (let p = 0; p < 5; p++) if (id[c*5+p] >= 'A' && id[c*5+p] <= 'Z') b |= 1 << p; sfx += map[b]; } return id + sfx; })()"}}]},
+ {id:"crossEntity",name:"Cross-entity: id + name from same parent",desc:"reference the previous tab; keep its id AND name paired",special:"crossEntity"}
+];
+function uniqueFieldName(base,taken){
+  let n=base,i=2;
+  while(fields.some(f=>f.name.trim()===n)||taken.has(n)) n=base+"_"+(i++);
+  taken.add(n);return n;
+}
+function bindInput(inp){
+  let f=null;
+  if(inp.match&&inp.match.types) f=fields.find(x=>inp.match.types.includes(x.type));
+  if(!f&&inp.match&&inp.match.names){
+    const norm=v=>v.trim().toLowerCase();
+    f=fields.find(x=>inp.match.names.some(n=>norm(x.name).includes(n)));
+  }
+  return f;
+}
+function insertRecipe(r){
+  if(r.special==="crossEntity") return insertCrossEntity(r);
+  const bound={}, taken=new Set(), createdNames=[];
+  for(const inp of (r.inputs||[])){
+    let f=bindInput(inp);
+    if(!f){
+      f=newField(uniqueFieldName(inp.name,taken),inp.type,inp.opts);
+      fields.push(f); createdNames.push(f.name);
+    }
+    bound[inp.role]=f.name;
+  }
+  const planned=r.adds.map(a=>({def:a,nm:uniqueFieldName(a.name,taken)}));
+  planned.forEach(p=>{if(p.def.role)bound[p.def.role]=p.nm;});
+  for(const p of planned){
+    const opts=Object.assign({},p.def.opts||{});
+    if(opts.expr) opts.expr=opts.expr.replace(/\$\{(\w+)\}/g,(m,role)=>bound[role]??m);
+    fields.push(newField(p.nm,p.def.type,opts));
+    createdNames.push(p.nm);
+  }
+  render();
+  setStatus("Recipe inserted: "+r.name+" ("+createdNames.length+" field"+(createdNames.length===1?"":"s")+" added — plain fields, edit freely).","ok",5000);
+}
+function insertCrossEntity(r){
+  if(activeEnt===0){
+    setStatus("This recipe references a PARENT entity — it needs a tab to the LEFT of this one.","err",6000);
+    return;
+  }
+  const parent=entities[activeEnt-1];
+  const ptaken=new Set();
+  const puniq=b=>{let n=b,i=2;while(parent.fields.some(f=>f.name.trim()===n)||ptaken.has(n))n=b+"_"+(i++);ptaken.add(n);return n;};
+  let pid=parent.fields.find(f=>["UUID","Row Number"].includes(f.type))||parent.fields.find(f=>f.name.trim().toLowerCase()==="id");
+  if(!pid){pid=newField(puniq("id"),"UUID");parent.fields.push(pid);}
+  let pname=parent.fields.find(f=>f.type==="Company")||parent.fields.find(f=>f.name.trim().toLowerCase()==="name");
+  if(!pname){pname=newField(puniq("name"),"Company");parent.fields.push(pname);}
+  const key=newField(puniq("key"),"Formula (JS)",{expr:"field('"+pid.name+"') + '|' + field('"+pname.name+"')"});
+  parent.fields.push(key);
+  const taken=new Set();
+  const acct=uniqueFieldName("acct",taken);
+  fields.push(newField(acct,"Reference",{entity:parent.name,field:key.name,unique:""}));
+  fields.push(newField(uniqueFieldName(parent.name.toLowerCase()+"_id",taken),"Formula (JS)",{expr:"field('"+acct+"').split('|')[0]"}));
+  fields.push(newField(uniqueFieldName(parent.name.toLowerCase()+"_name",taken),"Formula (JS)",{expr:"field('"+acct+"').split('|').slice(1).join('|')"}));
+  render();
+  setStatus("Recipe inserted: linked to "+parent.name+" — its id and name now always come from the SAME parent record.","ok",6000);
+}
+
+/* recipe picker */
+const recipePop=$("recipe-pop");
+function renderRecipeList(){
+  const q=$("recipe-q").value.trim().toLowerCase();
+  const hits=RECIPES.filter(r=>(r.name+" "+r.desc).toLowerCase().includes(q));
+  $("recipe-list").innerHTML=hits.map(r=>`<div class="rec-it" data-id="${r.id}"><b>${escHtml(r.name)}</b><span>${escHtml(r.desc)}</span></div>`).join("")||'<div class="pop-more">No matches.</div>';
+  $("recipe-list").querySelectorAll(".rec-it").forEach(el=>{
+    el.addEventListener("click",()=>{
+      const r=RECIPES.find(x=>x.id===el.dataset.id);
+      closeRecipes();
+      if(r) insertRecipe(r);
+    });
+  });
+}
+function openRecipes(anchor){
+  closeTypePicker();
+  $("recipe-q").value="";
+  recipePop.hidden=false;
+  placePop(recipePop,anchor);
+  renderRecipeList();
+  $("recipe-q").focus();
+}
+function closeRecipes(){recipePop.hidden=true;}
+$("recipe-q").addEventListener("input",renderRecipeList);
+$("btn-recipes").addEventListener("click",e=>{
+  if(recipePop.hidden) openRecipes(e.currentTarget); else closeRecipes();
+});
+
 /* ---------- Popover placement / dismissal ---------- */
 function placePop(pop,anchor){
   const r=anchor.getBoundingClientRect();
@@ -1110,9 +1260,10 @@ function placePop(pop,anchor){
 }
 document.addEventListener("mousedown",e=>{
   if(!typePop.hidden&&!typePop.contains(e.target)&&!e.target.closest("[data-act=type]")) closeTypePicker();
+  if(!recipePop.hidden&&!recipePop.contains(e.target)&&!e.target.closest("#btn-recipes")) closeRecipes();
 });
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"){closeTypePicker();}
+  if(e.key==="Escape"){closeTypePicker();closeRecipes();}
   if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();refresh();}
 });
 
