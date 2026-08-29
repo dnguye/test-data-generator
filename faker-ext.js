@@ -232,11 +232,23 @@
   var TYPO_DOMAIN = ["gmial.com", "gmai.com", "gmail.co", "yahoo.con", "yaho.com",
                      "hotmial.com", "hotmail.co", "outlook.con", "iclould.com"];
 
-  function localeFaker(loc) {
-    return new F.Faker({ locale: [loc, F.en, F.base], randomizer: f._randomizer });
+  /* A locale instance carries its own randomizer, so left alone it ignores the
+     app's seed entirely. Earlier versions of this file handed it the main
+     instance's randomizer, but that reached into a private property (`_randomizer`)
+     which faker v10 removed -- silently, leaving every locale method unseeded.
+
+     Instead, re-seed the instance from a draw off the main (already seeded)
+     faker before each call. The draw is deterministic, so the whole chain stays
+     reproducible, and nothing here depends on faker's internals. */
+  function localeCaller(loc) {
+    var inst = new F.Faker({ locale: [loc, F.en, F.base] });
+    return function (fn) {
+      inst.seed(f.number.int({ min: 0, max: 2147483647 }));
+      return fn(inst);
+    };
   }
-  var accented = [localeFaker(F.fr), localeFaker(F.de), localeFaker(F.es), localeFaker(F.pl)];
-  var cjk = [localeFaker(F.ja), localeFaker(F.zh_CN), localeFaker(F.ko)];
+  var accented = [localeCaller(F.fr), localeCaller(F.de), localeCaller(F.es), localeCaller(F.pl)];
+  var cjk = [localeCaller(F.ja), localeCaller(F.zh_CN), localeCaller(F.ko)];
 
   f.dirty = {
     blank:      function () { return ""; },
@@ -263,8 +275,8 @@
                         : grouped.replace(/,/g, ".") + "," + cents;
     },
     smartQuoteName: function () { return pick(["O", "D", "L"]) + "’" + f.person.lastName(); },
-    accentedName:   function () { return pick(accented).person.fullName(); },
-    cjkName:        function () { return pick(cjk).person.fullName(); },
+    accentedName:   function () { return pick(accented)(function (i) { return i.person.fullName(); }); },
+    cjkName:        function () { return pick(cjk)(function (i) { return i.person.fullName(); }); },
     htmlEntity:     function () { return f.person.lastName() + " &amp; " + pick(["Sons", "Co", "Partners"]) + " &lt;Inc&gt;"; },
     emailTypo:      function () { return f.internet.username().toLowerCase() + "@" + pick(TYPO_DOMAIN); },
     emailWithPlus:  function () { return f.internet.username().toLowerCase() + "+" + f.word.noun() + "@" + f.internet.domainName(); },
@@ -475,13 +487,13 @@
   }
 
   var INTL = LOCALES.filter(function (l) { return !!l.loc; }).map(function (l) {
-    var inst = localeFaker(l.loc);
+    var call = localeCaller(l.loc);
     var api = {
-      fullName:      function () { return safe(function () { return inst.person.fullName(); }, ""); },
-      city:          function () { return safe(function () { return inst.location.city(); }, ""); },
-      streetAddress: function () { return safe(function () { return inst.location.streetAddress(); }, ""); },
-      zipCode:       function () { return safe(function () { return inst.location.zipCode(); }, ""); },
-      phone:         function () { return safe(function () { return inst.phone.number(); }, ""); },
+      fullName:      function () { return safe(function () { return call(function (i) { return i.person.fullName(); }); }, ""); },
+      city:          function () { return safe(function () { return call(function (i) { return i.location.city(); }); }, ""); },
+      streetAddress: function () { return safe(function () { return call(function (i) { return i.location.streetAddress(); }); }, ""); },
+      zipCode:       function () { return safe(function () { return call(function (i) { return i.location.zipCode(); }); }, ""); },
+      phone:         function () { return safe(function () { return call(function (i) { return i.phone.number(); }); }, ""); },
       place: function () {
         return JSON.stringify({
           country: l.name,
