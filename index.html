@@ -269,6 +269,7 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 
 
 <script src="./faker.iife.js"></script>
+<script src="./faker-ext.js"></script>
 <script type="module">
 "use strict";
 /* ---------- Modern Faker (v9): vendored bundle first, CDN fallback ---------- */
@@ -323,8 +324,13 @@ const FAKER_METHODS = (()=>{
     if(SKIP.has(mod)||mod.startsWith("_")) continue;
     const m=faker[mod];
     if(!m||typeof m!=="object") continue;
-    const proto=Object.getPrototypeOf(m)||{};
-    const keys=new Set([...Object.keys(m),...Object.getOwnPropertyNames(proto)]);
+    /* Faker's own modules are class instances, so their methods live on the
+       prototype. Custom modules (faker-ext.js) are plain objects, whose
+       prototype is Object.prototype — walking that would offer hasOwnProperty,
+       toString and friends as data types. */
+    const proto=Object.getPrototypeOf(m);
+    const inherited=(proto&&proto!==Object.prototype)?Object.getOwnPropertyNames(proto):[];
+    const keys=new Set([...Object.keys(m),...inherited]);
     for(const k of keys){
       if(k==="constructor"||k.startsWith("_")) continue;
       let fn; try{fn=m[k];}catch(e){continue;}

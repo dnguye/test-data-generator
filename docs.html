@@ -90,7 +90,7 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
     <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a>
-    <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a><a href="#spec">Format spec</a>
+    <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#modules">Extra type modules</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a><a href="#spec">Format spec</a>
   </div>
 </div>
 
@@ -424,6 +424,89 @@ fields('orders.order[1-3].qty').reduce((a, b) =&gt; a + b, 0)
 
 <span class="cm">// weighted choice: ~80% active</span>
 rand(1, 10) &lt;= 8 ? 'active' : 'inactive'</code></pre>
+</div>
+
+<div class="card" id="modules">
+  <h2>Extra type modules</h2>
+  <p>Alongside Faker's own catalog, this build ships <b>181 extra methods</b> in <code>faker-ext.js</code>. They appear
+  in the type picker as ordinary categories &mdash; open the picker and type <code>dirty.</code> or
+  <code>ident.</code> to browse them. All of them honour the seed exactly like the built-ins.</p>
+
+  <table>
+    <tr><th>Module</th><th>What it is for</th><th>Examples</th></tr>
+    <tr><td><code>dirty</code></td><td>The values real source systems actually contain. Built for testing ingestion,
+      normalisation and matching.</td>
+      <td><code>nullish</code> &rarr; <code>#N/A</code><br><code>leadingZeroNumber</code> &rarr; <code>0047215</code><br>
+      <code>unicodeConfusable</code> &rarr; Cyrillic <code>а</code> inside a Latin word<br>
+      <code>zeroWidth</code>, <code>emailTypo</code>, <code>phoneMessy</code>, <code>dateMessy</code>, <code>csvBreaker</code></td></tr>
+    <tr><td><code>weighted</code></td><td>Realistic skew instead of uniform picks &mdash; uniform data hides the
+      long-tail bugs.</td>
+      <td><code>customerTier</code> &rarr; 70/20/10<br><code>accountStatus</code>, <code>leadSource</code>,
+      <code>industry</code>, <code>country</code>, <code>usState</code>, <code>emailDomain</code></td></tr>
+    <tr><td><code>ident</code></td><td>Identifiers with real, verifiable check digits &mdash; for systems that
+      validate rather than just store.</td>
+      <td><code>npi</code>, <code>abaRouting</code>, <code>isin</code>, <code>gtin13</code>, <code>upc12</code>,
+      <code>vin</code>, <code>nhsNumber</code>, <code>sinCanada</code>, <code>ssn</code>, <code>ein</code></td></tr>
+    <tr><td><code>ids</code></td><td>Identifiers shaped like the ones CRM and ERP systems issue.</td>
+      <td><code>salesforceAccount</code> &rarr; a real 18-char id whose 3-char checksum suffix verifies<br>
+      <code>sapCustomer</code>, <code>netsuiteInternal</code>, <code>dynamicsGuid</code>, <code>hubspotObjectId</code>,
+      <code>jiraIssueKey</code></td></tr>
+    <tr><td><code>geo&hellip;</code></td><td>Country pools scoped to one region, with postal codes in each country's
+      real format. Five regions: <code>geoNorthAmerica</code>, <code>geoLatinAmerica</code>, <code>geoEurope</code>,
+      <code>geoAsiaPacific</code>, <code>geoMiddleEastAfrica</code>.</td>
+      <td><code>country</code>, <code>countryCode</code>, <code>city</code>, <code>postal</code>, <code>place</code></td></tr>
+    <tr><td><code>intl&hellip;</code></td><td>Genuinely localised data from twelve locales already inside the bundle
+      &mdash; <code>intlJapan</code>, <code>intlGermany</code>, <code>intlBrazil</code>, <code>intlKorea</code> and more,
+      plus <code>intlAny</code> for a different country every row.</td>
+      <td><code>intlJapan.city</code> &rarr; 内海市<br><code>intlJapan.fullName</code> &rarr; 小谷 悠<br>
+      <code>fullName</code>, <code>city</code>, <code>streetAddress</code>, <code>zipCode</code>, <code>phone</code>, <code>place</code></td></tr>
+    <tr><td><code>unwrap</code></td><td>Flat accessors for the Faker methods that return objects or arrays &mdash;
+      those render as <code>[object Object]</code> in CSV and XML, these do not.</td>
+      <td><code>airportName</code>, <code>airportIata</code>, <code>currencyCode</code>, <code>elementSymbol</code>,
+      <code>languageName</code>, <code>colorHsl</code> &rarr; <code>hsl(183, 80%, 19%)</code></td></tr>
+  </table>
+
+  <h3>Country, city and postal code that agree</h3>
+  <p>Each method is an independent draw, so <code>geoEurope.country</code> and <code>geoEurope.city</code> in two
+  separate fields will not line up. When the values must agree on a row, use <code>place</code> &mdash; it returns one
+  JSON object &mdash; and split it with formulas:</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Value</th></tr>
+    <tr><td><code>_src</code></td><td>Faker &rarr; <code>geoEurope.place</code></td><td><code>{"country":"France","countryCode":"FR","city":"Bordeaux","postal":"92765"}</code></td></tr>
+    <tr><td><code>country</code></td><td>Formula (JS)</td><td><code>JSON.parse(field('_src')).country</code></td></tr>
+    <tr><td><code>city</code></td><td>Formula (JS)</td><td><code>JSON.parse(field('_src')).city</code></td></tr>
+    <tr><td><code>postal</code></td><td>Formula (JS)</td><td><code>JSON.parse(field('_src')).postal</code></td></tr>
+  </table>
+  <p class="dim">The same pattern works for <code>intlJapan.place</code> (adds <code>name</code> and
+  <code>street</code>) and for <code>intlAny.place</code>, which changes country every row. Give the source field a
+  name starting with <code>_</code> if you would rather remember which column is scaffolding &mdash; it is still
+  exported, so delete it if you do not want it in the output.</p>
+
+  <h3>Writing your own module</h3>
+  <p>Add methods by editing <code>faker-ext.js</code> in the repository &mdash; no build step, no rebundling of
+  <code>faker.iife.js</code>. It loads before the app boots, and the type picker is built by walking the faker object,
+  so anything you add simply appears.</p>
+  <pre><code>FakerLib.faker.acme = {
+  productCode: <span class="cm">function () {</span>
+    <span class="cm">// compose faker's own methods, never Math.random()</span>
+    return 'ACME-' + FakerLib.faker.string.alphanumeric(6).toUpperCase();
+  },
+  warehouse: function () {
+    return FakerLib.faker.helpers.arrayElement(['DAL-1', 'ATL-2', 'PHX-3']);
+  }
+};</code></pre>
+  <table>
+    <tr><th>Rule</th><th>Why</th></tr>
+    <tr><td>Flat modules only &mdash; <code>faker.acme.productCode</code>, never <code>faker.geo.na.code</code></td><td>The catalog walks exactly two levels.</td></tr>
+    <tr><td>No arguments</td><td>The app calls every method as <code>fn()</code>; anything needing an argument is skipped.</td></tr>
+    <tr><td>Return something defined (<code>""</code> is fine)</td><td>Methods returning <code>undefined</code> are dropped silently.</td></tr>
+    <tr><td>Randomness from <code>faker.*</code> only</td><td><code>Math.random()</code> ignores the seed &mdash; that one field stops reproducing while every other field keeps reproducing, which is painful to track down.</td></tr>
+    <tr><td>Do not use <code>this</code></td><td>Methods are invoked detached from the module object.</td></tr>
+  </table>
+  <p class="dim">Testing locally: opening <code>index.html</code> straight from disk does not work &mdash; browsers
+  block the page's script loads over <code>file://</code> and nothing boots. Serve the folder instead
+  (<code>python3 -m http.server</code>) and open <code>localhost</code>. The type count in the toolbar tells you
+  whether your module was picked up.</p>
 </div>
 
 <div class="card" id="seeds">

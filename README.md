@@ -6,23 +6,27 @@ Everything runs client-side. No server, no build step, no accounts, and no data 
 
 ## Tests
 
+`node tests/ext.mjs` runs a 4,056-check audit of the extra generator modules: catalog discovery, scalar-only output, checksum validity, region/postal agreement, locale output, weighting, and seed reproducibility.
+
 `node tests/audit.mjs` runs a 41-check engine audit (no dependencies) against the code extracted from `index.html`: schema edge cases, escaping, formula failures, reference guardrails, duplicate/targeted-similarity behavior, reproducibility, and a 10k-row performance guard.
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `docs.html`, `faker.iife.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
-That's it. You can also just open `index.html` directly from disk — it works as a local file too.
+That's it. Note that opening `index.html` straight from disk does not work — browsers block the page's script loads over `file://`. To run it locally, serve the folder (`python3 -m http.server`) and open `localhost`.
 
 ## How Faker is loaded
 
 The app tries, in order:
 
-1. **Vendored copy** — `./faker.iife.js` (full modern library, offline-capable, works from `file://`)
+1. **Vendored copy** — `./faker.iife.js` (the full modern library, including all 72 locales, served from this repo — no runtime dependency on any external host)
 2. **CDN** — `@faker-js/faker` v9 from jsdelivr, only if the vendored file is missing
 3. **Built-in pools** — small fallback word lists so the tool never breaks
+
+`./faker-ext.js` loads next and adds this build's own generator modules (see below). Keeping them in a separate file means the vendored bundle stays a pristine artifact you can re-bundle without re-applying edits.
 
 To rebuild the vendored bundle with a newer version:
 
@@ -85,7 +89,7 @@ The full guide — every field type, structure syntax, linked entities, matching
 ## Field types
 
 - **Built-ins:** names, email, phone, address parts, company, job title, UUID, boolean, number (min/max/decimals), date (range + format), custom list, static value, lorem words
-- **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.username`, `commerce.productName`, `git.commitSha`, etc. Click the method box and type to search: the field autocompletes against every method the loaded Faker build exposes (244 across 26 modules), so you don't need to know a path in advance. The catalog is read from Faker itself at page load, and methods that require arguments are left out because this tool calls them with none. See [fakerjs.dev/api](https://fakerjs.dev/api/) for what each one returns.
+- **Faker (any):** call any method in the Faker library by path — `finance.iban`, `vehicle.vin`, `internet.username`, `commerce.productName`, `git.commitSha`, etc. Click the method box and type to search: the field autocompletes against every method the loaded build exposes (425 across 49 modules), so you don't need to know a path in advance. The catalog is read from Faker itself at page load, and methods that require arguments are left out because this tool calls them with none. See [fakerjs.dev/api](https://fakerjs.dev/api/) for what each one returns.
 
   The type picker lists all of it: click it and type to search the built-ins plus every Faker method, grouped by module. Picking a method is the same as choosing **Faker (any)** with that path, so schemas stay compatible either way.
 - **Formula (JS):** JavaScript expression with access to other fields:
@@ -95,6 +99,24 @@ The full guide — every field type, structure syntax, linked entities, matching
   - `concat(...)`, `pad(v, len)`, `rand(min, max)`, `i` (repeat index), `row` (whole record)
 
 Formulas run after all other fields, in field order, so a formula can also reference an earlier formula.
+
+## Extra generator modules
+
+`faker-ext.js` adds 181 methods on top of Faker's own catalog. They show up in the type picker as ordinary categories and honour the seed like everything else:
+
+| Module | For |
+|---|---|
+| `dirty` | The values real source systems contain — `nullish`, `leadingZeroNumber`, `unicodeConfusable`, `zeroWidth`, `emailTypo`, `phoneMessy`, `dateMessy`, `csvBreaker`. Built for ingestion and matching tests. |
+| `weighted` | Realistic skew instead of uniform picks — `customerTier` (70/20/10), `accountStatus`, `leadSource`, `industry`, `country`, `usState`, `emailDomain`. |
+| `ident` | Identifiers with verifiable check digits — `npi`, `abaRouting`, `isin`, `gtin13`, `upc12`, `vin`, `nhsNumber`, `sinCanada`, `ssn`, `ein`. |
+| `ids` | CRM/ERP-shaped ids — `salesforceAccount` (valid 18-char checksum), `sapCustomer`, `netsuiteInternal`, `dynamicsGuid`, `hubspotObjectId`, `jiraIssueKey`. |
+| `geo…` | Country pools scoped to a region with each country's real postal format — `geoNorthAmerica`, `geoLatinAmerica`, `geoEurope`, `geoAsiaPacific`, `geoMiddleEastAfrica`. |
+| `intl…` | Genuinely localised data from twelve locales in the bundle — `intlJapan`, `intlGermany`, `intlBrazil`, `intlKorea` and more, plus `intlAny` for a different country every row. |
+| `unwrap` | Flat accessors for the Faker methods that return objects or arrays (they render as `[object Object]` in CSV/XML) — `airportName`, `currencyCode`, `elementSymbol`, `colorHsl`. |
+
+Each method is an independent draw. When country, city and postal code must agree on a row, use the module's `place()` method — it returns one JSON object — and split it with formulas (`JSON.parse(field('_src')).city`).
+
+To add your own, edit `faker-ext.js`: modules must be flat (`faker.acme.productCode`), methods take no arguments, must return something defined, and must draw randomness from `faker.*` rather than `Math.random()` so the seed still holds. [docs.html](docs.html#modules) has the full guide.
 
 ## Reproducible data
 
