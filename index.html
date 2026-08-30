@@ -119,14 +119,24 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .field-row.dragging{opacity:.45}
 .field-row.over{box-shadow:0 0 0 2px var(--accent)}
 .fr-top{display:flex;align-items:center;gap:4px}
-.fr-top input{flex:1;min-width:0;font-size:.92rem;font-weight:600;border:0;border-bottom:1.5px solid var(--line);border-radius:0;background:transparent;padding:6px 2px}
-.fr-top input:focus-visible{outline:none;border-bottom-color:var(--accent)}
+.fr-top input{flex:1;min-width:0;font-size:.88rem;font-weight:600;cursor:text;
+  border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px 11px}
+.fr-top input::placeholder{font-weight:400;color:var(--faint)}
+.fr-top input:hover{border-color:var(--accent)}
+.fr-top input:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .drag{border:0;background:transparent;cursor:grab;padding:5px 2px;color:var(--faint);line-height:0;border-radius:5px}
 .drag:hover{color:var(--accent);background:var(--accent-soft)}
-.type-btn{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;font-size:.84rem;font-weight:500;padding:8px 10px;text-align:left;background:var(--soft-bg)}
-.type-btn:hover{background:var(--accent-soft)}
-.type-btn .t-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.type-btn.is-faker{color:var(--accent);font-weight:600}
+.type-btn{display:flex;align-items:center;gap:9px;width:100%;font-size:.84rem;font-weight:600;
+  padding:8px 12px;text-align:left;border-radius:9px;border-color:transparent;
+  background:var(--accent-soft);color:var(--accent-dk);cursor:pointer}
+.type-btn:hover{background:#E6DFF7}
+/* a standing label, so the control announces itself as a picker rather than
+   reading as a second text box */
+.type-btn .t-kind{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--accent);opacity:.75;flex:none}
+.type-btn .t-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.type-btn svg{flex:none;color:var(--accent)}
+.type-btn.is-faker .t-label{font-family:var(--mono);font-size:.78rem}
 .field-row input{font-family:var(--body);font-size:.84rem;width:100%}
 /* the rule above also caught checkboxes, stretching them across the card and
    pushing their label to the far edge */
@@ -1015,13 +1025,13 @@ function render(){
     row.innerHTML=`
       <div class="fr-top">
         <button class="drag" title="Drag to reorder" aria-label="Drag to reorder">${ICONS.drag}</button>
-        <input type="text" data-k="name" value="${escAttr(f.name)}" aria-label="Field name" spellcheck="false">
+        <input type="text" data-k="name" value="${escAttr(f.name)}" aria-label="Field name" placeholder="field name" spellcheck="false">
         <div class="row-actions">
           <button class="icon" data-act="dup" title="Duplicate field" aria-label="Duplicate field">${ICONS.dup}</button>
           <button class="icon" data-act="del" title="Remove field" aria-label="Remove field">${ICONS.del}</button>
         </div>
       </div>
-      <button class="type-btn${f.type==="Faker (any)"?" is-faker":""}" data-act="type" title="Change type"><span class="t-label">${escHtml(typeLabel(f))}</span>${ICONS.chev}</button>
+      <button class="type-btn${f.type==="Faker (any)"?" is-faker":""}" data-act="type" title="Change type"><span class="t-kind">type</span><span class="t-label">${escHtml(typeLabel(f))}</span>${ICONS.chev}</button>
       ${optsHtml}${simUI(f)}${hint?`<div class="hint">${hint}</div>`:""}
       <span class="sample" data-sample>&nbsp;</span>`;
     row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;schedule();});
