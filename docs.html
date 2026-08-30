@@ -10,17 +10,17 @@
      leave the page inert for as long as it takes to time out. The faces still
      swap in when they arrive (display=swap); the page is usable immediately. -->
 <link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <noscript><link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
 :root{
   --paper:#F8F6FC; --grid:#ECE7F6; --panel:#FFFFFF; --ink:#443F5C; --muted:#8D87A6;
-  --line:#DFD9EE; --soft-bg:#FAF8FD; --accent:#8B7EC8; --accent-dk:#7566B8; --accent-soft:#F0ECFA;
+  --line:#DFD9EE; --soft-bg:#FAF8FD; --accent:#8B7EC8; --deep:#4B4270; --body-muted:#5D566F; --accent-dk:#7566B8; --accent-soft:#F0ECFA;
   --ok:#63A98C; --warn:#D89A5E;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
-  --body:'Inter',system-ui,sans-serif;
-  --display:'Archivo',system-ui,sans-serif;
+  --body:'Figtree',system-ui,sans-serif;
+  --display:'Figtree',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{font-size:125%;scroll-behavior:smooth;scroll-padding-top:76px}
@@ -35,17 +35,20 @@ header{display:flex;align-items:center;justify-content:space-between;gap:14px;fl
   transition:box-shadow .25s ease, background .25s ease}
 header.lifted{box-shadow:0 6px 22px -14px rgba(68,63,92,.5)}
 .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-h1{font-family:var(--display);font-weight:800;font-size:1.2rem;letter-spacing:-.02em;text-transform:uppercase}
+h1{font-family:var(--display);font-weight:800;font-size:1.25rem;letter-spacing:-.035em}
 h1 span{color:var(--accent)}
 .tagline{font-family:var(--mono);font-size:.7rem;color:var(--muted)}
-.back{font-size:.8rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 13px;border-radius:7px}
+.back{font-size:.82rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 16px;border-radius:999px}
 .back:hover{color:var(--ink);background:var(--accent-soft)}
-main{max-width:880px;margin:0 auto;padding:26px 20px 80px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 0 rgba(68,63,92,.05);
-  padding:22px 26px;margin-bottom:18px}
-h2{font-family:var(--display);font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
-h3{font-size:.85rem;font-weight:600;margin:18px 0 8px}
-p,li{font-size:.85rem;line-height:1.65;color:var(--ink)}
+main{max-width:880px;margin:0 auto;padding:44px 20px 130px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 0 rgba(68,63,92,.05);
+  padding:38px 40px;margin-bottom:26px}
+h2{font-family:var(--display);font-size:1.5rem;font-weight:700;letter-spacing:-.03em;line-height:1.12;
+  margin-bottom:14px;text-wrap:balance}
+h3{font-size:1rem;font-weight:700;letter-spacing:-.02em;margin:26px 0 10px}
+p,li{font-size:.95rem;line-height:1.72;color:var(--ink)}
+main p{color:var(--body-muted)}
+main p b,main p strong{color:var(--ink)}
 p+p{margin-top:8px}
 ul,ol{padding-left:20px;margin:8px 0}
 li{margin:3px 0}
@@ -60,14 +63,14 @@ th{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spac
 td{padding:7px 10px;border-bottom:1px solid var(--soft-bg);vertical-align:top;line-height:1.55}
 td code{white-space:nowrap}
 td:first-child{white-space:nowrap;font-weight:600}
-.toc{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
-.toc a{font-size:.76rem;font-weight:600;text-decoration:none;background:var(--accent-soft);border-radius:99px;padding:5px 13px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.toc a{font-size:.78rem;font-weight:600;text-decoration:none;background:var(--accent-soft);border-radius:999px;padding:7px 15px}
 .kv{color:var(--ok)}
 .cm{color:var(--muted)}
 kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
 @media(max-width:640px){
-  main{padding:14px 10px 60px}
-  .card{padding:16px 13px;margin-bottom:12px;border-radius:9px}
+  main{padding:20px 11px 70px}
+  .card{padding:22px 17px;margin-bottom:16px;border-radius:13px}
   header{padding:10px 12px}
   /* tables become their own horizontal scrollers instead of stretching the page */
   table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
@@ -80,8 +83,8 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
 .h3row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 8px}
 .spec-scroll{max-height:480px}
 .h3row h3{margin:0}
-.h3row button{font-family:var(--body);font-size:.78rem;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:7px;padding:7px 13px;cursor:pointer}
-.h3row button:hover{background:var(--accent);color:#fff}
+.h3row button{font-family:var(--body);font-size:.78rem;font-weight:600;color:#fff;background:var(--deep);border:1px solid var(--deep);border-radius:999px;padding:8px 17px;cursor:pointer}
+.h3row button:hover{background:var(--ink);border-color:var(--ink)}
 
 /* ---------- motion ----------
    Cards rise in once as they enter the viewport; the table of contents tracks

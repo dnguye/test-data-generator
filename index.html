@@ -10,9 +10,9 @@
      leave the page inert for as long as it takes to time out. The faces still
      swap in when they arrive (display=swap); the page is usable immediately. -->
 <link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <noscript><link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
 :root{
   --paper:#F8F6FC;
@@ -23,15 +23,15 @@
   --faint:#C9C3DD;
   --line:#DFD9EE;
   --soft-bg:#FAF8FD;
-  --accent:#8B7EC8;
+  --accent:#8B7EC8; --deep:#4B4270;
   --accent-dk:#7566B8;
   --accent-soft:#F0ECFA;
   --ok:#63A98C;
   --warn:#D89A5E;
   --err:#C4728A;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
-  --body:'Inter',system-ui,sans-serif;
-  --display:'Archivo',system-ui,sans-serif;
+  --body:'Figtree',system-ui,sans-serif;
+  --display:'Figtree',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;font-size:125%}
@@ -42,20 +42,20 @@ body{
   min-height:100vh;
 }
 button{font-family:var(--body);font-size:.84rem;font-weight:600;color:var(--ink);background:var(--panel);
-  border:1px solid var(--line);border-radius:7px;padding:8px 13px;cursor:pointer;transition:background .12s}
+  border:1px solid var(--line);border-radius:999px;padding:8px 15px;cursor:pointer;letter-spacing:-.005em;transition:background .12s}
 button:hover{background:var(--accent-soft)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button.primary:hover{background:var(--accent-dk)}
+button.primary{background:var(--deep);border-color:var(--deep);color:#fff;padding:8px 18px}
+button.primary:hover{background:var(--ink)}
 button.ghost{border-color:transparent;color:var(--muted)}
 button.ghost:hover{color:var(--ink);background:var(--accent-soft)}
-button.dashed{border:1px dashed var(--accent);color:var(--accent);background:var(--panel)}
+button.dashed{border:1px dashed var(--accent);color:var(--accent-dk);background:var(--panel)}
 button.dashed:hover{background:var(--accent-soft)}
-button.soft{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
-.doclink{display:inline-flex;align-items:center;font-size:.84rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 13px;border-radius:7px}
+button.soft{background:var(--accent-soft);border-color:transparent;color:var(--accent-dk)}
+.doclink{display:inline-flex;align-items:center;font-size:.84rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 15px;border-radius:999px}
 .doclink:hover{color:var(--ink);background:var(--accent-soft)}
 .tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 12px;background:var(--soft-bg);border-bottom:1px solid var(--line)}
-.tab{display:inline-flex;align-items:center;gap:7px;font-size:.84rem;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+.tab{display:inline-flex;align-items:center;gap:7px;font-size:.84rem;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
 .tab:hover{color:var(--ink);border-color:var(--accent)}
 .tab.on{color:var(--ink);border-color:var(--accent);background:var(--accent-soft);cursor:default}
 .tab.on input{border:0;background:transparent;font-family:var(--body);font-weight:600;font-size:.84rem;padding:0;color:var(--ink)}
@@ -66,7 +66,7 @@ button.soft{background:var(--accent-soft);border-color:var(--accent);color:var(-
 .tab.tadd{font-weight:700;color:var(--accent);border-style:dashed}
 .chk{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--ink)}
 .chk input{width:auto}
-button.icon{padding:6px;line-height:0;border-color:transparent;background:transparent}
+button.icon{padding:7px;line-height:0;border-color:transparent;background:transparent;border-radius:999px}
 button.icon:hover{background:var(--accent-soft)}
 input,select,textarea{font-family:var(--body);font-size:.86rem;color:var(--ink);background:var(--panel);
   border:1px solid var(--line);border-radius:6px;padding:7px 9px}
@@ -78,7 +78,7 @@ code{font-family:var(--mono);font-size:.72rem;background:var(--accent-soft);bord
 header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(1.15rem,3vw,1.35rem);letter-spacing:-.02em;text-transform:uppercase;white-space:nowrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.2rem,3vw,1.45rem);letter-spacing:-.035em;white-space:nowrap}
 h1 span{color:var(--accent)}
 .tagline{font-size:.78rem;color:var(--muted)}
 .hdr-tools{display:flex;gap:8px;flex-wrap:wrap}
@@ -106,7 +106,7 @@ h1 span{color:var(--accent)}
 
 main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:18px;align-items:start}
 @media(max-width:980px){main{grid-template-columns:1fr}}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 0 rgba(20,33,61,.06);overflow:hidden}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 0 rgba(20,33,61,.06);overflow:hidden}
 .panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .panel-h h2{font-family:var(--display);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .cnt{font-size:.74rem;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0}
@@ -114,7 +114,7 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 
 
 .fields{padding:10px;display:flex;flex-direction:column;gap:10px}
-.field-row{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--panel)}
+.field-row{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
 .field-row:hover{border-color:var(--accent)}
 .field-row.dragging{opacity:.45}
 .field-row.over{box-shadow:0 0 0 2px var(--accent)}
@@ -128,6 +128,9 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .type-btn .t-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .type-btn.is-faker{color:var(--accent);font-weight:600}
 .field-row input{font-family:var(--body);font-size:.84rem;width:100%}
+/* the rule above also caught checkboxes, stretching them across the card and
+   pushing their label to the far edge */
+.field-row .chk input[type=checkbox]{width:auto;flex:none}
 .field-row textarea{font-family:var(--mono);font-size:.8rem;width:100%}
 .opt-row{display:flex;gap:6px}
 .opt-row input{min-width:0}
@@ -149,7 +152,7 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .note{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--muted);padding:9px 14px;border-top:1px solid var(--line);background:var(--soft-bg)}
 .tag{color:#A78BC9}.attr{color:var(--warn)}.str{color:var(--ok)}.key{color:var(--accent)}.num{color:var(--warn)}
 
-.pop{position:fixed;z-index:50;background:var(--panel);border:1px solid var(--accent);border-radius:9px;
+.pop{position:fixed;z-index:50;background:var(--panel);border:1px solid var(--accent);border-radius:13px;
   box-shadow:0 10px 28px rgba(20,33,61,.18);width:min(360px,92vw)}
 .pop-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line)}
 .pop-search input{border:0;padding:2px;flex-grow:1;font-size:.86rem}
