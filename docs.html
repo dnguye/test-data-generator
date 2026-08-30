@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Documentation · Test Data Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Loaded without blocking render: a stylesheet in the head holds up every
+     inline script until it resolves, so a slow or unreachable font host would
+     leave the page inert for as long as it takes to time out. The faces still
+     swap in when they arrive (display=swap); the page is usable immediately. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<noscript><link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
 :root{
   --paper:#F8F6FC; --grid:#ECE7F6; --panel:#FFFFFF; --ink:#443F5C; --muted:#8D87A6;
@@ -16,13 +23,17 @@
   --display:'Archivo',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{font-size:125%}
+html{font-size:125%;scroll-behavior:smooth;scroll-padding-top:76px}
 body{font-family:var(--body);color:var(--ink);background:var(--paper);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:28px 28px;background-position:-1px -1px;min-height:100vh}
 a{color:var(--accent)} a:hover{color:var(--accent-dk)}
 header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  padding:12px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+  padding:12px 22px;background:color-mix(in srgb,var(--panel) 88%,transparent);
+  backdrop-filter:saturate(1.6) blur(9px);-webkit-backdrop-filter:saturate(1.6) blur(9px);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+  transition:box-shadow .25s ease, background .25s ease}
+header.lifted{box-shadow:0 6px 22px -14px rgba(68,63,92,.5)}
 .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 h1{font-family:var(--display);font-weight:800;font-size:1.2rem;letter-spacing:-.02em;text-transform:uppercase}
 h1 span{color:var(--accent)}
@@ -71,6 +82,37 @@ kbd{font-family:var(--mono);font-size:.66rem;background:var(--soft-bg);border:1p
 .h3row h3{margin:0}
 .h3row button{font-family:var(--body);font-size:.78rem;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:7px;padding:7px 13px;cursor:pointer}
 .h3row button:hover{background:var(--accent);color:#fff}
+
+/* ---------- motion ----------
+   Cards rise in once as they enter the viewport; the table of contents tracks
+   the section you are reading. Everything here is disabled wholesale under
+   prefers-reduced-motion, including the smooth scrolling above. */
+.card{transition:transform .45s cubic-bezier(.22,.68,.35,1),
+                 opacity .45s cubic-bezier(.22,.68,.35,1),
+                 box-shadow .25s ease, border-color .25s ease}
+.card.reveal{opacity:0; transform:translateY(14px)}
+.card.reveal.in{opacity:1; transform:none}
+.card:hover{box-shadow:0 3px 20px -12px rgba(68,63,92,.45)}
+
+.toc a{transition:background .18s ease,color .18s ease,transform .18s ease}
+.toc a:hover{transform:translateY(-1px)}
+.toc a.here{background:var(--accent);color:#fff}
+
+h2,h3{scroll-margin-top:84px}
+.card{scroll-margin-top:84px}
+
+.h3row button{transition:background .18s ease,color .18s ease,transform .12s ease}
+.h3row button:active{transform:scale(.97)}
+.back{transition:background .18s ease,color .18s ease}
+
+a,button{outline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent)}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition:none!important;animation:none!important}
+  .card.reveal{opacity:1;transform:none}
+}
 </style>
 </head>
 <body>
@@ -730,6 +772,49 @@ rejected — this format describes rules, not data.
       if(src) put(btn,src.textContent);
     });
   });
+
+  /* ---------- motion ----------
+     Anyone who has asked their system for less motion gets none of this: no
+     reveal, no scroll easing, no header transition. The page is fully readable
+     without any of it, so everything below is progressive enhancement. */
+  var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var cards = [].slice.call(document.querySelectorAll("main .card"));
+
+  if(!still && "IntersectionObserver" in window){
+    /* The first screenful is already in view on load; revealing it would just
+       look like a slow page. Only cards below the fold animate in. */
+    cards.forEach(function(c){
+      if(c.getBoundingClientRect().top > window.innerHeight * 0.9) c.classList.add("reveal");
+    });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); }
+      });
+    }, {rootMargin:"0px 0px -12% 0px", threshold:0.06});
+    cards.forEach(function(c){ if(c.classList.contains("reveal")) io.observe(c); });
+  }
+
+  /* Table of contents follows the section you are reading. */
+  var links = [].slice.call(document.querySelectorAll(".toc a"));
+  var targets = links.map(function(a){
+    return document.getElementById(a.getAttribute("href").slice(1));
+  });
+  var header = document.querySelector("header");
+  var ticking = false;
+  function onScroll(){
+    if(header) header.classList.toggle("lifted", window.scrollY > 8);
+    var line = window.scrollY + 140, active = -1;
+    for(var i=0;i<targets.length;i++){
+      if(targets[i] && targets[i].offsetTop <= line) active = i;
+    }
+    links.forEach(function(a,i){ a.classList.toggle("here", i === active); });
+    ticking = false;
+  }
+  window.addEventListener("scroll", function(){
+    if(!ticking){ ticking = true; window.requestAnimationFrame(onScroll); }
+  }, {passive:true});
+  onScroll();
+  document.documentElement.dataset.motion = still ? "reduced" : "on";
 })();
 </script>
 </body>

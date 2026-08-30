@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Test Data Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Loaded without blocking render: a stylesheet in the head holds up every
+     inline script until it resolves, so a slow or unreachable font host would
+     leave the page inert for as long as it takes to time out. The faces still
+     swap in when they arrive (display=swap); the page is usable immediately. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<noscript><link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
 :root{
   --paper:#F8F6FC;
@@ -172,7 +179,37 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .bind-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
 .bind-name{width:100%;font-size:.8rem}
 .bind-name[hidden]{display:none}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- motion ----------
+   This is a tool, not a page you read, so nothing animates on scroll: motion
+   here only confirms an action or softens a state change. All of it drops out
+   under prefers-reduced-motion. */
+html{scroll-behavior:smooth}
+
+button{transition:background .16s ease,color .16s ease,border-color .16s ease,transform .1s ease}
+button:active{transform:translateY(1px)}
+.tab{transition:background .16s ease,color .16s ease,border-color .16s ease}
+
+.field-row{transition:border-color .18s ease,box-shadow .22s ease,transform .18s ease}
+.field-row:hover{box-shadow:0 2px 14px -10px rgba(68,63,92,.55)}
+.field-row.dragging{opacity:.55;transform:scale(.99)}
+.field-row.over{border-color:var(--accent)}
+
+/* Popovers settle in rather than snapping. */
+.pop{transform-origin:top left;animation:pop-in .13s cubic-bezier(.2,.7,.4,1)}
+@keyframes pop-in{from{opacity:0;transform:translateY(-4px) scale(.985)}to{opacity:1;transform:none}}
+.pop-it,.pop-g{transition:background .12s ease,color .12s ease}
+
+.type-btn{transition:border-color .16s ease,background .16s ease}
+#status{transition:opacity .2s ease,color .2s ease}
+#preview.flash{animation:prev-in .22s ease-out}
+@keyframes prev-in{from{opacity:.5}to{opacity:1}}
+.sample{transition:opacity .2s ease}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
 </style>
 </head>
 <body>
@@ -1414,6 +1451,8 @@ function refresh(){
     const {out}=serializeRows(rows,curEnt());
     const pre=$("preview");
     pre.innerHTML=fmt==="xml"?hlXml(out):fmt==="json"?hlJson(out):xescView(out);
+    /* brief fade so a refresh is visible even when the output barely changes */
+    pre.classList.remove("flash"); void pre.offsetWidth; pre.classList.add("flash");
     $("prev-count").textContent="· "+rows.length+" of "+entRowCount(curEnt())+" · seed "+seed;
     const flat=rows[0].flat;
     document.querySelectorAll(".field-row").forEach((el,i)=>{
