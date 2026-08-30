@@ -4,15 +4,37 @@ A zero-dependency, browser-based test data generator. Define a schema (or import
 
 Everything runs client-side. No server, no build step, no accounts, and no data leaves the browser.
 
+There is also an optional [HTTP API](./api/README.md) for generating the same
+data from a script or an agent — `POST /v1/generate` with a schema id, a row
+count and a seed. It is not needed to use the tool.
+
+## Files
+
+| file | what it is |
+|---|---|
+| `index.html` | the whole app — markup, styles and UI |
+| `engine.js` | the generation core: types, seeding, formulas, references, duplicates, serializers |
+| `faker.iife.js` | the vendored [@faker-js/faker](https://fakerjs.dev) bundle |
+| `faker-ext.js` | the extra generator modules (see below) |
+| `api/` | the optional HTTP API |
+
+`engine.js` is the single implementation. The browser page imports it, the API
+generates from it, and the test suites exercise it — which is why a schema and
+seed produce the same rows through the API as they do on the page.
+
 ## Tests
+
+`npm test` runs all three suites. Individually:
 
 `node tests/ext.mjs` runs a 4,056-check audit of the extra generator modules: catalog discovery, scalar-only output, checksum validity, region/postal agreement, locale output, weighting, and seed reproducibility.
 
-`node tests/audit.mjs` runs a 41-check engine audit (no dependencies) against the code extracted from `index.html`: schema edge cases, escaping, formula failures, reference guardrails, duplicate/targeted-similarity behavior, reproducibility, and a 10k-row performance guard.
+`node tests/audit.mjs` runs a 41-check audit of `engine.js`: schema edge cases, escaping, formula failures, reference guardrails, duplicate/targeted-similarity behavior, reproducibility, and a 10k-row performance guard.
+
+`node tests/api.mjs` runs a 71-check audit of the HTTP API: the reproducibility contract, schema validation, multi-entity row counts, sandbox isolation, and transport behaviour.
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `engine.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
@@ -122,10 +144,20 @@ To add your own, edit `faker-ext.js`: modules must be flat (`faker.acme.productC
 
 ## Reproducible data
 
-Set a **seed** and the same schema + seed always produces identical output — useful for repeatable test suites.
+Set a **seed** and the same schema, row count and seed always produce identical
+output — useful for repeatable test suites.
+
+The row count is part of that, not a separate knob. The generator draws from one
+seeded stream, so row 7 depends on everything drawn for rows 1-6: asking for 11
+rows instead of 10 does not append a row, it shifts the whole run. Pin the schema,
+the count and the seed together, or pin none of them.
+
+(Duplicate injection is the one exception: it emits more rows than requested, and
+the injected rows shift the ones after them. Such a run still reproduces exactly
+for that same count.)
 
 ## Limits
 
 - 10,000 rows per download (browser memory guardrail)
 - One repeating segment per field path
-- Formulas are plain JS evaluated in-page; this is a test-data tool, so only paste expressions you trust
+- Formulas are plain JS evaluated in-page; this is a test-data tool, so only paste expressions you trust. (The API, which cannot trust its callers, runs them in a separate process instead — see [api/README.md](./api/README.md).)
