@@ -54,7 +54,15 @@ button.dashed:hover{background:var(--accent-soft)}
 button.soft{background:var(--accent-soft);border-color:transparent;color:var(--accent-dk)}
 .doclink{display:inline-flex;align-items:center;font-size:.84rem;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 15px;border-radius:999px}
 .doclink:hover{color:var(--ink);background:var(--accent-soft)}
-.tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 12px;background:var(--soft-bg);border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;padding:9px 12px;background:var(--soft-bg);
+  border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
+.tabs::-webkit-scrollbar{display:none}
+.tabs>*{flex:none}
+/* the add button stays reachable at the right edge however many entities there are */
+.tab.tadd{position:sticky;right:0;background:var(--soft-bg);box-shadow:-10px 0 10px -6px var(--soft-bg)}
+/* the strip's own right padding would otherwise let a scrolled tab show past
+   the pinned button */
+.tab.tadd::after{content:"";position:absolute;left:100%;top:-9px;bottom:-9px;width:14px;background:var(--soft-bg)}
 .tab{display:inline-flex;align-items:center;gap:7px;font-size:.84rem;font-weight:600;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
 .tab:hover{color:var(--ink);border-color:var(--accent)}
 .tab.on{color:var(--ink);border-color:var(--accent);background:var(--accent-soft);cursor:default}
@@ -113,7 +121,8 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .tools{display:flex;gap:7px;flex-wrap:wrap}
 
 
-.fields{padding:10px;display:flex;flex-direction:column;gap:10px}
+.fields{padding:10px;display:flex;flex-direction:column;gap:10px;
+  height:64vh;overflow-y:auto;overscroll-behavior:contain}
 .field-row{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
 .field-row:hover{border-color:var(--accent)}
 .field-row.dragging{opacity:.45}
@@ -990,6 +999,10 @@ function renderTabs(){
   add.textContent="+";add.title="Add entity (a second record type, e.g. Contacts)";
   add.addEventListener("click",()=>{entities.push(newEntity());switchEnt(entities.length-1);});
   bar.appendChild(add);
+  /* the strip scrolls sideways rather than wrapping, so the tab you just
+     selected or created can be sitting out of view */
+  const cur=bar.querySelector(".tab.on");
+  if(cur&&cur.scrollIntoView) cur.scrollIntoView({inline:"nearest",block:"nearest"});
 }
 /* Structural edits go through here: adding, removing, duplicating, reordering a
    field, or switching entity. Ordinary re-renders stay synchronous -- animating
