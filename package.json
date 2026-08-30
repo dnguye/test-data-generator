@@ -1,0 +1,12 @@
+{
+  "name": "test-data-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser test-data generator, plus an HTTP API that reproduces its output exactly.",
+  "scripts": {
+    "api": "node api/server.mjs",
+    "test": "node tests/audit.mjs && node tests/ext.mjs && node tests/api.mjs"
+  },
+  "engines": { "node": ">=18" }
+}

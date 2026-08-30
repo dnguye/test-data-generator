@@ -1,20 +1,22 @@
 // Engine audit for Test Data Generator.
-// Run with: node tests/audit.mjs   (no dependencies; extracts the engine from index.html)
-import fs from 'fs';
-import path from 'path';
-import {fileURLToPath} from 'url';
-const ROOT=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-globalThis.document={getElementById:(id)=>({value: id==="seed"?"42":""})};
-globalThis.FakerLib=new Function(fs.readFileSync(path.join(ROOT,'faker.iife.js'),'utf8')+'; return FakerLib;')();
-const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-const engine=html.match(/<script type="module">\n"use strict";\n([\s\S]*?)\/\* ---------- UI helpers/)[1];
-const _unused=0;
+// Run with: node tests/audit.mjs   (no dependencies beyond the repo itself)
+//
+// This exercises engine.js directly -- the same module index.html imports and
+// the same one api/ generates from -- so a green run here means all three agree.
+import {loadFaker} from '../api/faker-node.mjs';
+import * as E from '../engine.js';
+E.useFaker(loadFaker().faker);
+globalThis.__E=E;
+/* The suite body runs as one function so its declarations do not leak; the
+   engine's exports are lifted into that scope, and `entities` stays a local
+   the tests can reassign. */
+const engine='const E=globalThis.__E; const {'+Object.keys(E).filter(k=>k!=='default').join(',')+'}=globalThis.__E; const faker=E.getFaker(); let entities=[];\n';
 let pass=0,fail=0;
 globalThis.check=(name,cond)=>{if(cond){pass++;}else{fail++;console.log("FAIL:",name);}};
 globalThis.done=()=>console.log("RESULT:",pass,"passed,",fail,"failed");
 const test=String.raw`
 function mkEnt(name,rows,flds,x){const e=newEntity(name);e.rows=String(rows);e.fields=flds;Object.assign(e,x||{});return e;}
-const run=()=>runAll(en=>entRowCount(en));
+const run=()=>runAll(entities,en=>entRowCount(en),42);
 
 /* === group 1: empty / degenerate schemas === */
 entities=[mkEnt("E",5,[])];
