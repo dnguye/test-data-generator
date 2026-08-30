@@ -219,9 +219,19 @@ button:active{transform:translateY(1px)}
 @keyframes prev-in{from{opacity:.5}to{opacity:1}}
 .sample{transition:opacity .2s ease}
 
+/* View Transitions: the browser animates the difference between the field list
+   before and after a structural edit. The root snapshot is left un-animated so
+   only the rows move and the rest of the page swaps instantly. Pseudo-elements
+   are not matched by the universal reset below, hence the explicit guard. */
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(root),::view-transition-new(root){animation:none}
+  ::view-transition-group(*){animation-duration:.3s;animation-timing-function:cubic-bezier(.22,.68,.35,1)}
+}
+
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{transition:none!important;animation:none!important}
+  ::view-transition-group(*){animation:none!important}
 }
 </style>
 </head>
@@ -981,7 +991,16 @@ function renderTabs(){
   add.addEventListener("click",()=>{entities.push(newEntity());switchEnt(entities.length-1);});
   bar.appendChild(add);
 }
-function switchEnt(ix){activeEnt=ix;fields=curEnt().fields;syncToolbar();render();}
+/* Structural edits go through here: adding, removing, duplicating, reordering a
+   field, or switching entity. Ordinary re-renders stay synchronous -- animating
+   every keystroke-driven redraw would be noise. Falls back to a plain render
+   where the API is missing or motion is unwelcome. */
+function renderT(){
+  if(typeof document.startViewTransition!=="function"
+     || matchMedia("(prefers-reduced-motion: reduce)").matches) return render();
+  document.startViewTransition(()=>render());
+}
+function switchEnt(ix){activeEnt=ix;fields=curEnt().fields;syncToolbar();renderT();}
 function syncToolbar(){
   $("rows").value=curEnt().rows;$("rootEl").value=curEnt().root;$("recEl").value=curEnt().record;
   $("dupLevel").value=curEnt().dupLevel||"off";$("dupPct").value=curEnt().dupPct||"20";$("dupMax").value=curEnt().dupMax||"2";
@@ -1021,6 +1040,10 @@ function render(){
   fields.forEach((f,idx)=>{
     const row=document.createElement("div");
     row.className="field-row";
+    /* keyed on the field's id, not its position, or a reorder would look like
+       every row rewriting itself in place */
+    if(!f.id) f.id=++fid;
+    row.style.viewTransitionName="fr"+f.id;
     const optsHtml=optsUI(f), hint=optHint(f);
     row.innerHTML=`
       <div class="fr-top">
@@ -1040,9 +1063,9 @@ function render(){
     row.querySelector('[data-act=dup]').addEventListener("click",()=>{
       const c=newField(f.name+"_copy",f.type,JSON.parse(JSON.stringify(f.opts)));
       if(f.sim) c.sim={...f.sim};
-      fields.splice(idx+1,0,c);render();
+      fields.splice(idx+1,0,c);renderT();
     });
-    row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);render();});
+    row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);renderT();});
     row.querySelectorAll("[data-opt]").forEach(el=>{
       el.addEventListener("input",e=>{
         f.opts[e.target.dataset.opt]=e.target.value;
@@ -1072,7 +1095,7 @@ function render(){
     row.addEventListener("drop",e=>{
       e.preventDefault();row.classList.remove("over");
       if(dragIdx===null||dragIdx===idx)return;
-      const [m]=fields.splice(dragIdx,1);fields.splice(idx,0,m);dragIdx=null;render();
+      const [m]=fields.splice(dragIdx,1);fields.splice(idx,0,m);dragIdx=null;renderT();
     });
     $fields.appendChild(row);
   });
@@ -1544,7 +1567,7 @@ $("btn-download-all").addEventListener("click",()=>{
     setStatus(errors.length?("Downloaded with errors: "+errors.join(" | ")):("Downloading "+results.length+" files — allow multiple downloads if the browser asks."),errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 });
-$("btn-add").addEventListener("click",()=>{fields.push(newField());render();});
+$("btn-add").addEventListener("click",()=>{fields.push(newField());renderT();});
 $("btn-example").addEventListener("click",()=>{
   const acc=newEntity("Accounts"); acc.rows="20"; acc.root="accounts"; acc.record="account";
   acc.fields=[
