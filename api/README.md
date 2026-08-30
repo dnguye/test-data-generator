@@ -16,11 +16,17 @@ itself (`tests/api.mjs` and the parity check in the repo notes).
 ## Run it
 
 ```bash
-npm run api          # http://localhost:8787, no configuration, no dependencies
+npm run api          # http://127.0.0.1:8787, no configuration, no dependencies
 ```
 
-Storage defaults to JSON files under `.data/schemas/`. Nothing else is needed to
-try it. See **Deploying** below for a real host.
+Storage defaults to JSON files under `.data/schemas/`, so registered schemas
+survive a restart with nothing else set up. See **Deploying** below for a real
+host.
+
+It binds to **loopback only** by default. That matters because there is no auth:
+binding every interface would hand the API to everyone on the same wifi. Set
+`HOST=0.0.0.0` to expose it deliberately, once something in front of it is doing
+access control -- a tunnel, a reverse proxy, or a private network.
 
 ---
 
@@ -230,6 +236,7 @@ which would otherwise silently fill a column with `#REF`.
 | variable | default | meaning |
 |---|---|---|
 | `PORT` | `8787` | `server.mjs` listen port |
+| `HOST` | `127.0.0.1` | listen address; `0.0.0.0` to accept off-machine traffic |
 | `TDG_STORE` | auto | `file`, `memory` or `supabase` |
 | `TDG_DATA_DIR` | `.data/schemas` | file store location |
 | `TDG_TABLE` | `schemas` | Supabase table |

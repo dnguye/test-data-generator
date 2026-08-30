@@ -83,8 +83,15 @@ export function createServer(opts) {
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
   const { server, api } = createServer();
   const port = Number(process.env.PORT) || 8787;
+  /* Loopback by default. Node would otherwise bind every interface, which on a
+     laptop hands an unauthenticated API to everyone on the same wifi. Opt in
+     with HOST=0.0.0.0 once something in front of it is doing access control. */
+  const host = process.env.HOST || "127.0.0.1";
   api.pool.start().then(() => {
-    server.listen(port, () => console.log(`test-data-generator api on http://localhost:${port}  (store: ${api.store.name})`));
+    server.listen(port, host, () => {
+      console.log(`test-data-generator api on http://${host === "0.0.0.0" ? "localhost" : host}:${port}  (store: ${api.store.name})`);
+      if (host === "0.0.0.0") console.warn("  ! bound to every interface with no authentication -- put a tunnel or proxy in front of it");
+    });
   }).catch(e => { console.error("worker failed to start:", e.message); process.exit(1); });
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { api.pool.stop(); server.close(() => process.exit(0)); });
 }
