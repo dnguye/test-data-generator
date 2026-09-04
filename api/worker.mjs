@@ -53,11 +53,34 @@ function generate({ schema, counts, seed, format }) {
   return { seed: usedSeed, fingerprint: digest, entities: out, warnings: errors };
 }
 
+/* The answer key for one entity of a run, without the rest of the data: the
+   record ids and the match_id column, aligned. This is what lets a caller who
+   generated through the API score a matcher by quoting the same
+   (schemaId, count, seed) instead of shipping the file back.
+
+   Read from the flat rows rather than the shaped records, so a dotted field
+   name resolves exactly as the schema wrote it. */
+function truth({ schema, counts, seed, entity, idField }) {
+  const en = schema.entities.find(e => e.name === entity);
+  if (!en) throw new Error("No entity named " + entity);
+  const { results, seed: usedSeed } = E.runAll(schema.entities, e => counts[e.name], seed);
+  const r = results.find(x => x.en === en);
+  /* applyDuplicates() prepends its match column to each row's parsed list as a
+     field object that is not in the schema; that is how it is told apart from
+     a user's own field that happens to be called match_id. */
+  const mseg = r.rows.length ? r.rows[0].parsed.find(p => !en.fields.includes(p.f)) : null;
+  if (!mseg) throw new Error("Entity " + en.name + " produced no match_id column -- it has duplicate injection off");
+  const ids = [], matchIds = [];
+  for (const row of r.rows) { ids.push(row.flat[idField]); matchIds.push(row.flat[mseg.f.name]); }
+  return { seed: usedSeed, entity: en.name, matchField: mseg.f.name, rows: r.rows.length, ids, matchIds };
+}
+
 process.on("message", msg => {
   if (!msg || typeof msg !== "object") return;
   const { id, op } = msg;
   try {
     if (op === "generate") process.send({ id, ok: true, result: generate(msg) });
+    else if (op === "truth") process.send({ id, ok: true, result: truth(msg) });
     else process.send({ id, ok: false, error: "Unknown op: " + op });
   } catch (e) {
     process.send({ id, ok: false, error: String((e && e.message) || e) });

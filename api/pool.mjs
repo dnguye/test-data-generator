@@ -59,7 +59,12 @@ export class GeneratorPool {
     return this.ready;
   }
 
-  async run(job) {
+  /* Every job goes through the same timer and the same kill-and-respawn path,
+     whatever it computes; `op` just tells the worker which. */
+  run(job) { return this.send({ op: "generate", ...job }); }
+  truth(job) { return this.send({ op: "truth", ...job }); }
+
+  async send(job) {
     await this.start();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
@@ -73,7 +78,7 @@ export class GeneratorPool {
         reject(Object.assign(new Error("generation timed out"), { kind: "timeout" }));
       }, this.timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.child.send({ id, op: "generate", ...job });
+      this.child.send({ id, ...job });
     });
   }
 

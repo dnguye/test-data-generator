@@ -211,6 +211,48 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .bind-name{width:100%;font-size:.8rem}
 .bind-name[hidden]{display:none}
 
+
+/* ---------- score dialog ----------
+   The other half of duplicate injection: paste what a matcher linked and score
+   it against the match_id answer key. A native <dialog>, so it needs no
+   positioning code and the page behind it stays exactly as it was. */
+.dlg{border:1px solid var(--line);border-radius:16px;padding:0;width:min(780px,94vw);max-height:92vh;
+  background:var(--panel);color:var(--ink);box-shadow:0 18px 50px rgba(20,33,61,.22)}
+.dlg::backdrop{background:rgba(68,63,92,.32);backdrop-filter:blur(2px)}
+.dlg-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--panel);z-index:1}
+.dlg-h h2{font-family:var(--display);font-size:.9rem;font-weight:700;letter-spacing:-.01em}
+.dlg-body{padding:14px 16px 18px;display:flex;flex-direction:column;gap:14px}
+.sc-sec{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:9px;background:var(--soft-bg)}
+.sc-title{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sc-row label{font-size:.72rem;font-weight:600;color:var(--muted)}
+.sc-row select{max-width:100%;font-size:.8rem}
+.sc-pair{display:inline-flex;align-items:center;gap:8px;max-width:100%}
+.sc-pair select{min-width:0;max-width:min(320px,70vw)}
+.sc-row input[type=number]{width:74px}
+.sc-sec textarea{background:var(--panel);min-height:68px}
+.sc-sec .seg{align-self:flex-start}
+.sc-sec input[type=file]{font-size:.74rem;color:var(--muted);border:0;background:transparent;padding:0}
+.sc-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sc-actions .status{max-width:none;white-space:normal}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font-family:var(--mono);font-size:1.25rem;font-weight:600;letter-spacing:-.02em}
+.tile span{font-size:.7rem;color:var(--muted)}
+.tile.good b{color:var(--ok)}.tile.warn b{color:var(--warn)}.tile.bad b{color:var(--err)}
+.sc-note{font-size:.76rem;line-height:1.5;color:var(--ink)}
+.sc-warn{font-size:.76rem;line-height:1.5;color:var(--warn);border-left:3px solid var(--warn);padding:4px 10px}
+.sc-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.72rem}
+.sc-table th{font-family:var(--body);font-size:.68rem;font-weight:600;color:var(--muted);text-align:right;padding:4px 8px;border-bottom:1px solid var(--line)}
+.sc-table td{text-align:right;padding:4px 8px;border-bottom:1px solid var(--line)}
+.sc-table th:first-child,.sc-table td:first-child{text-align:left}
+.sc-table tr.pick td{background:var(--accent-soft)}
+.sc-list{font-family:var(--mono);font-size:.72rem;line-height:1.6;max-height:180px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre}
+details.sc-det summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--ink)}
+details.sc-det summary span{color:var(--muted);font-weight:400}
+.sc-wrap{overflow-x:auto}
+
 /* ---------- motion ----------
    This is a tool, not a page you read, so nothing animates on scroll: motion
    here only confirms an action or softens a state change. All of it drops out
@@ -263,6 +305,7 @@ button:active{transform:translateY(1px)}
     <a class="doclink" href="./docs.html">Docs</a>
     <button id="btn-import" class="ghost">Import schema</button>
     <button id="btn-export" class="ghost">Export schema</button>
+    <button id="btn-score" class="ghost" title="Score a matcher's output against the match_id ground truth">Score matcher</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
     <button id="btn-download-all" class="ghost" style="display:none">Download all</button>
     <button id="btn-download" class="primary">Download</button>
@@ -328,6 +371,78 @@ button:active{transform:translateY(1px)}
   </section>
 </main>
 
+<dialog id="score-dlg" class="dlg" aria-labelledby="score-title">
+  <div class="dlg-h">
+    <h2 id="score-title">Score a matcher against ground truth</h2>
+    <button type="button" class="icon" id="sc-close" aria-label="Close">&#10005;</button>
+  </div>
+  <div class="dlg-body">
+    <p class="hint">Generate with <b>dups</b> on and a <b>seed</b> set, download, hold back the <code>match_id</code> column, and run your
+    matcher on the rest. Paste the pairs it linked below. The scorer compares them with the pairs that share a match_id &mdash;
+    <b>pairwise precision and recall</b>, closed under transitivity, never accuracy. <a href="./docs.html#scoring">How this works</a>.</p>
+
+    <section class="sc-sec">
+      <div class="sc-title">1 &middot; Ground truth</div>
+      <div class="seg" id="sc-src" role="tablist" aria-label="Where the answer key comes from">
+        <button type="button" data-src="entity" class="on" role="tab">This entity + seed</button><button type="button" data-src="paste" role="tab">Paste the generated file</button>
+      </div>
+      <div id="sc-src-entity">
+        <div class="sc-row">
+          <span class="sc-pair"><label for="sc-idfield">record id field</label><select id="sc-idfield"></select></span>
+          <span class="sc-pair"><label for="sc-blockfield">blocking key field</label><select id="sc-blockfield"></select></span>
+        </div>
+        <div id="sc-truth-info" class="hint"></div>
+        <div class="sc-row"><button type="button" id="sc-key" class="ghost">Download answer key (id, match_id)</button>
+          <span class="hint">The same seed regenerates the same rows, so the key lines up with the file you downloaded.</span></div>
+      </div>
+      <div id="sc-src-paste" hidden>
+        <textarea id="sc-truth-text" rows="4" placeholder="Paste the CSV or JSON you downloaded, match_id column included &mdash; or choose the file" aria-label="Generated file with match_id"></textarea>
+        <div class="sc-row">
+          <input type="file" id="sc-truth-file" accept=".csv,.json,text/csv,application/json" aria-label="Choose the generated file">
+          <span class="sc-pair"><label for="sc-idcol">id column</label><select id="sc-idcol"></select></span>
+          <span class="sc-pair"><label for="sc-matchcol">match column</label><select id="sc-matchcol"></select></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sc-sec">
+      <div class="sc-title">2 &middot; What the matcher linked</div>
+      <textarea id="sc-pairs" rows="6" placeholder="One linked pair per line:   id_a,id_b   or   id_a,id_b,score
+or JSON:   [[&quot;a&quot;,&quot;b&quot;,0.93], &hellip;]   /   [{&quot;a&quot;:&hellip;,&quot;b&quot;:&hellip;,&quot;score&quot;:&hellip;}, &hellip;]
+Scores are optional. With scores you also get a threshold sweep and the auto-merge / review bands." aria-label="Matcher output"></textarea>
+      <div class="sc-row">
+        <input type="file" id="sc-pairs-file" accept=".csv,.tsv,.txt,.json,text/*,application/json" aria-label="Choose the matcher output file">
+        <label class="chk"><input type="checkbox" id="sc-header"> first line is a header</label>
+        <label class="chk"><input type="checkbox" id="sc-close-t" checked> close under transitivity (A&ndash;B + B&ndash;C implies A&ndash;C)</label>
+      </div>
+      <div class="sc-row">
+        <label for="sc-auto">auto-merge at score &ge;</label><input type="number" id="sc-auto" value="0.92" step="0.01" min="0" max="1">
+        <label for="sc-review">review queue from &ge;</label><input type="number" id="sc-review" value="0.78" step="0.01" min="0" max="1">
+        <span class="hint">used when the pairs carry scores</span>
+      </div>
+    </section>
+
+    <section class="sc-sec">
+      <div class="sc-title">3 &middot; Blocking (optional)</div>
+      <div class="sc-row">
+        <select id="sc-cand-kind" aria-label="What the rows below are">
+          <option value="pairs">rows are candidate pairs: id_a,id_b</option>
+          <option value="blocks">rows are block assignments: id,block_key</option>
+        </select>
+        <span class="hint">or pick a blocking key field in step 1</span>
+      </div>
+      <textarea id="sc-cand" rows="3" placeholder="Every pair your blocking step produced (before any threshold), or each record's block key. Scores pair completeness &mdash; the recall ceiling &mdash; and reduction ratio." aria-label="Blocking output"></textarea>
+    </section>
+
+    <div class="sc-actions">
+      <button type="button" id="sc-run" class="primary">Score</button>
+      <button type="button" id="sc-copy" class="ghost" hidden>Copy results as JSON</button>
+      <span id="sc-status" class="status"></span>
+    </div>
+    <div id="sc-results" hidden></div>
+  </div>
+</dialog>
+
 <div id="recipe-pop" class="pop" hidden>
   <div class="pop-search">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8D87A6" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg>
@@ -359,6 +474,9 @@ import {
   entRowCount, runAll, serializeRows as serializeAs,
   jaroWinkler, SIM_FNS, fieldKind
 } from "./engine.js";
+import {
+  scoreAll, truthFromRecords, truthSummary, parsePairsText, parseRecordsText, parseLabelsText, looksLikeHeader
+} from "./scoring.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1143,6 +1261,206 @@ $("file-import").addEventListener("change",e=>{
   rd.readAsText(file);
   e.target.value="";
 });
+
+/* ---------- Score a matcher against the ground truth ----------
+   The dups feature adds match_id; this dialog scores a matcher's links
+   against it. All the arithmetic is in scoring.js; this is only the form. */
+const scoreDlg=$("score-dlg");
+let scSrc="entity", scLast=null, scTruthCols=[];
+function scNonRepeating(en){return en.fields.filter(f=>f.name.trim()&&!/\[.*\]/.test(f.name));}
+function scAutoIdField(en){
+  const fs=scNonRepeating(en);
+  return fs.find(f=>f.type==="UUID")||fs.find(f=>f.type==="Row Number")||fs.find(f=>f.name.trim().toLowerCase()==="id")||fs.find(f=>/(^|_)id$/i.test(f.name.trim()))||fs[0]||null;
+}
+function scFillEntityControls(){
+  const en=curEnt(), fs=scNonRepeating(en), auto=scAutoIdField(en);
+  const opt=(f,sel)=>`<option value="${escAttr(f.name)}"${sel?" selected":""}>${escHtml(f.name)} — ${escHtml(typeLabel(f))}</option>`;
+  const keep=$("sc-idfield").value;
+  $("sc-idfield").innerHTML=fs.map(f=>opt(f,keep?f.name===keep:f===auto)).join("")||'<option value="">— no fields —</option>';
+  const keepB=$("sc-blockfield").value;
+  $("sc-blockfield").innerHTML='<option value="">none</option>'+fs.map(f=>opt(f,f.name===keepB)).join("");
+  const problems=[];
+  if((en.dupLevel||"off")==="off") problems.push("dups are off for "+en.name+" — turn them on in the toolbar or there is nothing to find");
+  if(!$("seed").value.trim()) problems.push("no seed set — set one in the toolbar so the answer key regenerates the file you downloaded");
+  if(!fs.length) problems.push("the entity has no fields");
+  $("sc-truth-info").innerHTML=problems.length
+    ?`<span style="color:var(--err)">${escHtml(problems.join(" · "))}</span>`
+    :`Entity <b>${escHtml(en.name)}</b> · ${escHtml(String(entRowCount(en)))} base rows · dups ${escHtml(en.dupLevel)} ${escHtml(en.dupPct)}% ×${escHtml(en.dupMax)} · seed ${escHtml($("seed").value.trim())}`;
+}
+function scSetSrc(v){
+  scSrc=v;
+  $("sc-src").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.src===v));
+  $("sc-src-entity").hidden=v!=="entity";
+  $("sc-src-paste").hidden=v!=="paste";
+}
+$("sc-src").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>scSetSrc(b.dataset.src)));
+/* the generated rows for the current entity at the toolbar seed, exactly as
+   Download produces them: full row counts, every entity, so references resolve */
+function scEntityRows(){
+  const en=curEnt();
+  if((en.dupLevel||"off")==="off") throw new Error("Turn dups on for "+en.name+" first — with dups off no two records share a match_id.");
+  if(!$("seed").value.trim()) throw new Error("Set a seed first. Without one the file you downloaded and this answer key are different random runs.");
+  const {results}=runAll(entities,entRowCount,$("seed").value);
+  const rows=results.find(x=>x.en===en).rows;
+  const mseg=rows.length?rows[0].parsed.find(p=>!en.fields.includes(p.f)):null;
+  if(!mseg) throw new Error("No match_id column was produced — turn dups on for "+en.name+".");
+  return {en,rows,matchField:mseg.f.name};
+}
+function scTruthFromEntity(){
+  const idField=$("sc-idfield").value;
+  if(!idField) throw new Error("Pick the field that identifies one record (a UUID or Row Number field regenerates per variant).");
+  const {rows,matchField}=scEntityRows();
+  const flat=rows.map(r=>r.flat);
+  const labels=truthFromRecords(flat,idField,matchField);
+  let blocks=null;
+  const bf=$("sc-blockfield").value;
+  if(bf){
+    blocks=new Map();
+    for(const r of flat){
+      const v=r[bf];
+      if(Array.isArray(v)) throw new Error("Blocking field "+bf+" repeats, so it holds a list per record, not one key.");
+      blocks.set(String(r[idField]),String(v??""));
+    }
+  }
+  return {labels,blocks,note:"answer key regenerated from "+curEnt().name+" at seed "+$("seed").value.trim()+" ("+matchField+")"};
+}
+function scFillPasteCols(){
+  const t=$("sc-truth-text").value.trim();
+  const idSel=$("sc-idcol"), mSel=$("sc-matchcol");
+  if(!t){idSel.innerHTML=mSel.innerHTML="";scTruthCols=[];return;}
+  let cols=[];
+  try{cols=parseRecordsText(t).columns;}catch(e){idSel.innerHTML=mSel.innerHTML='<option value="">—</option>';return;}
+  scTruthCols=cols;
+  const m=cols.find(c=>c==="match_id")||cols.find(c=>/^_+match_id$/.test(c))||cols.find(c=>/match/i.test(c))||"";
+  const rest=cols.filter(c=>c!==m);
+  const idc=rest.find(c=>c.toLowerCase()==="id")||rest.find(c=>/(^|_)id$/i.test(c))||rest[0]||"";
+  idSel.innerHTML=cols.map(c=>`<option value="${escAttr(c)}"${c===idc?" selected":""}>${escHtml(c)}</option>`).join("");
+  mSel.innerHTML=cols.map(c=>`<option value="${escAttr(c)}"${c===m?" selected":""}>${escHtml(c)}</option>`).join("");
+}
+function scTruthFromPaste(){
+  const t=$("sc-truth-text").value.trim();
+  if(!t) throw new Error("Paste the generated file (CSV or JSON, with its match_id column) or choose it.");
+  const {records}=parseRecordsText(t);
+  if(!records.length) throw new Error("No records found in the pasted file.");
+  const idc=$("sc-idcol").value, mc=$("sc-matchcol").value;
+  if(!idc||!mc) throw new Error("Choose the id column and the match column.");
+  if(idc===mc) throw new Error("The id column and the match column are the same column.");
+  return {labels:truthFromRecords(records,idc,mc),blocks:null,note:records.length+" records pasted · id "+idc+" · match "+mc};
+}
+function scReadFileInto(input,textarea,after){
+  input.addEventListener("change",e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const rd=new FileReader();
+    rd.onload=()=>{textarea.value=rd.result;textarea.dispatchEvent(new Event("input"));if(after)after();};
+    rd.readAsText(file);
+    e.target.value="";
+  });
+}
+scReadFileInto($("sc-truth-file"),$("sc-truth-text"));
+scReadFileInto($("sc-pairs-file"),$("sc-pairs"));
+$("sc-truth-text").addEventListener("input",scFillPasteCols);
+/* the header checkbox follows the heuristic until the reader touches it */
+let scHeaderTouched=false;
+$("sc-header").addEventListener("change",()=>{scHeaderTouched=true;});
+$("sc-pairs").addEventListener("input",()=>{
+  if(scHeaderTouched) return;
+  const first=$("sc-pairs").value.trim().split(/\r?\n/,1)[0]||"";
+  if(first[0]==="["||first[0]==="{"){$("sc-header").checked=false;return;}
+  $("sc-header").checked=looksLikeHeader(first.split(/,|\t|;|\|/).map(c=>c.replace(/^"|"$/g,"")));
+});
+function scStatus(msg,cls){const el=$("sc-status");el.textContent=msg;el.className="status"+(cls?" "+cls:"");}
+const pct=x=>(x*100).toFixed(1)+"%";
+const grade=x=>x>=0.95?"good":x>=0.8?"warn":"bad";
+function scTile(label,value,cls){return `<div class="tile${cls?" "+cls:""}"><b>${escHtml(value)}</b><span>${escHtml(label)}</span></div>`;}
+function scPairList(list,total,truncated){
+  if(!total) return '<div class="hint">none</div>';
+  const body=list.map(p=>escHtml(p[0])+"  ·  "+escHtml(p[1])).join("\n");
+  return `<div class="sc-list">${body}${truncated?"\n… "+(total-list.length)+" more":""}</div>`;
+}
+function scRender(res,note){
+  const ev=res.evaluation, t=res.truth;
+  let h=`<div class="sc-note"><b>Ground truth:</b> ${t.records} records · ${t.clusters} clusters (${t.singletons} singletons) · <b>${t.true_pairs} true pairs</b>${note?" · "+escHtml(note):""}</div>`;
+  for(const w of res.warnings) h+=`<div class="sc-warn">${escHtml(w)}</div>`;
+  h+=`<div class="tiles">${scTile("precision  ·  TP / (TP + FP)",pct(ev.precision),grade(ev.precision))}${scTile("recall  ·  TP / (TP + FN)",pct(ev.recall),grade(ev.recall))}${scTile("F1",pct(ev.f1),grade(ev.f1))}
+    ${scTile("true positives",String(ev.tp))}${scTile("false merges",String(ev.fp),ev.fp?"bad":"good")}${scTile("missed matches",String(ev.fn),ev.fn?"warn":"good")}</div>
+    <div class="hint">${ev.predicted_pairs} predicted pairs${ev.closed_transitively?" after transitive closure":" (not closed)"} against ${ev.true_pairs} true pairs.</div>`;
+  if(res.blocking){
+    const b=res.blocking;
+    h+=`<div class="sc-title" style="margin-top:6px">Blocking</div><div class="tiles">
+      ${scTile("pair completeness  ·  recall ceiling",pct(b.pair_completeness),grade(b.pair_completeness))}
+      ${scTile("reduction ratio  ·  pair space cut",pct(b.reduction_ratio),b.reduction_ratio>=0.9?"good":"warn")}
+      ${scTile("candidate pairs",String(b.candidate_pairs))}${scTile("true pairs lost",String(b.true_pairs-b.surviving_blocking),b.true_pairs-b.surviving_blocking?"bad":"good")}</div>`;
+    if(b.lost_to_blocking.length)
+      h+=`<details class="sc-det"><summary>Lost to blocking <span>(${b.true_pairs-b.surviving_blocking})</span></summary>${scPairList(b.lost_to_blocking,b.true_pairs-b.surviving_blocking,b.lost_to_blocking.length<b.true_pairs-b.surviving_blocking)}</details>`;
+  }
+  if(res.banded){
+    const b=res.banded;
+    h+=`<div class="sc-title" style="margin-top:6px">Bands · auto-merge ≥ ${b.auto_merge_threshold} · review ≥ ${b.review_floor}</div><div class="tiles">
+      ${scTile("auto-merge precision",pct(b.auto_merge_precision),grade(b.auto_merge_precision))}
+      ${scTile("auto-merge recall",pct(b.auto_merge_recall),grade(b.auto_merge_recall))}
+      ${scTile("sent to review  ·  "+b.true_pairs_in_review+" true",String(b.review_queue_size))}
+      ${scTile("recall after a perfect review",pct(b.recall_after_perfect_review),grade(b.recall_after_perfect_review))}</div>
+      <div class="hint">${b.false_merges} false merge${b.false_merges===1?"":"s"} would have gone through unreviewed · ${b.missed_below_review} true pair${b.missed_below_review===1?"":"s"} scored below the review floor.</div>`;
+  }
+  if(res.sweep){
+    const best=res.sweep.reduce((a,r)=>r.f1>a.f1?r:a,res.sweep[0]);
+    h+=`<div class="sc-title" style="margin-top:6px">Threshold sweep</div><div class="sc-wrap"><table class="sc-table"><tr><th>threshold</th><th>linked</th><th>TP</th><th>FP</th><th>FN</th><th>precision</th><th>recall</th><th>F1</th></tr>`;
+    for(const r of res.sweep) h+=`<tr${r===best?' class="pick"':""}><td>${r.threshold.toFixed(2)}</td><td>${r.linked}</td><td>${r.tp}</td><td>${r.fp}</td><td>${r.fn}</td><td>${r.precision.toFixed(3)}</td><td>${r.recall.toFixed(3)}</td><td>${r.f1.toFixed(3)}</td></tr>`;
+    h+=`</table></div><div class="hint">Highlighted: best F1. Pick thresholds by cost, not F1 — in patient matching a false merge costs far more than a false split.</div>`;
+  }
+  h+=`<details class="sc-det"><summary>False merges <span>(${ev.fp}) — pairs linked that should not have been</span></summary>${scPairList(ev.false_merges,ev.fp,ev.false_merges_truncated)}</details>
+      <details class="sc-det"><summary>Missed matches <span>(${ev.fn}) — true pairs the matcher did not link</span></summary>${scPairList(ev.missed_matches,ev.fn,ev.missed_matches_truncated)}</details>`;
+  $("sc-results").innerHTML=h;
+  $("sc-results").hidden=false;
+  $("sc-copy").hidden=false;
+}
+$("sc-run").addEventListener("click",()=>{
+  $("sc-results").hidden=true;$("sc-copy").hidden=true;scLast=null;
+  try{
+    const truth=scSrc==="entity"?scTruthFromEntity():scTruthFromPaste();
+    const parsed=parsePairsText($("sc-pairs").value,$("sc-header").checked);
+    if(!parsed.pairs.length&&!$("sc-pairs").value.trim()) throw new Error("Paste the pairs your matcher linked (one id_a,id_b per line).");
+    const opts={closeTransitively:$("sc-close-t").checked};
+    const am=parseFloat($("sc-auto").value), rf=parseFloat($("sc-review").value);
+    if(Number.isFinite(am)) opts.autoMerge=am;
+    if(Number.isFinite(rf)) opts.reviewFloor=rf;
+    const candText=$("sc-cand").value.trim();
+    if(candText) opts.candidates=$("sc-cand-kind").value==="blocks"?parseLabelsText(candText):parsePairsText(candText).pairs;
+    else if(truth.blocks) opts.candidates=truth.blocks;
+    const res=scoreAll(truth.labels,parsed.pairs,opts);
+    scLast={truth:truthSummary(truth.labels),...res};
+    scRender(res,truth.note);
+    $("sc-results").scrollIntoView({block:"start",behavior:"smooth"});
+    scStatus(parsed.pairs.length+" pair"+(parsed.pairs.length===1?"":"s")+" read"+(parsed.header?" (header skipped)":"")+(parsed.scored?", with scores":"")+".","ok");
+  }catch(e){scStatus(e.message,"err");}
+});
+$("sc-copy").addEventListener("click",()=>{
+  if(!scLast) return;
+  const txt=JSON.stringify(scLast,null,2);
+  const done=()=>scStatus("Results copied as JSON.","ok"), failed=()=>scStatus("Copy failed — select the text manually.","err");
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,failed);
+  else{const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done();}catch(e){failed();}ta.remove();}
+});
+$("sc-key").addEventListener("click",()=>{
+  try{
+    const idField=$("sc-idfield").value;
+    if(!idField) throw new Error("Pick the record id field first.");
+    const {en,rows,matchField}=scEntityRows();
+    const esc=v=>{const s=String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const lines=[idField+","+matchField];
+    for(const r of rows) lines.push(esc(r.flat[idField])+","+esc(r.flat[matchField]));
+    saveBlob(lines.join("\n"),"text/csv",slug(en.name)+"-answer-key.csv");
+    scStatus("Answer key downloaded: "+rows.length+" rows, seed "+$("seed").value.trim()+".","ok");
+  }catch(e){scStatus(e.message,"err");}
+});
+$("btn-score").addEventListener("click",()=>{
+  closeTypePicker();closeRecipes();
+  scFillEntityControls();
+  scStatus("","");
+  if(typeof scoreDlg.showModal==="function") scoreDlg.showModal(); else scoreDlg.setAttribute("open","");
+});
+$("sc-close").addEventListener("click",()=>scoreDlg.close());
+scoreDlg.addEventListener("click",e=>{ if(e.target===scoreDlg) scoreDlg.close(); });   // backdrop click
 
 /* ---------- Boot ---------- */
 if(FAKER_METHODS.length){
