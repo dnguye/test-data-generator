@@ -348,10 +348,21 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   every pair. That is <a href="#scoring">blocking</a>, arrived at for free. A rule built only of fuzzy comparisons has no
   such key and costs the full n&sup2;; the builder says so under the rule, and a run that would exceed the comparison
   budget is refused with an explanation rather than freezing the tab.</p>
-  <h3>Reading the per-rule table</h3>
-  <p>The report gains a row per rule: how many pairs it compared, how many it linked, how many of those were right, and
-  how many were <b>over-matches</b>. That is how you find the single rule that is too loose without guessing. A pair
-  several rules agree on is counted under each of them, so the columns overlap by design.</p>
+  <h3>Reading the diagnostics</h3>
+  <p>Three things appear that a pasted matcher cannot give you, because the page ran the rules itself:</p>
+  <ul>
+    <li><b>Which rule matched.</b> A row per rule: how many pairs it compared, how many it linked, how many of those were
+    right, how many were <b>over-matches</b>, and a bar of the two. That is how you find the single rule that is too
+    loose. A pair several rules agree on is counted under each of them, so the columns overlap by design.</li>
+    <li><b>Which comparison failed the under-matches.</b> Every missed pair is run back through every rule, and for each
+    rule the report counts how many misses each comparison rejected. The tallest bar is the threshold to look at
+    first; <i>one comparison away</i> counts the misses a single loosened comparison would have caught.</li>
+    <li><b>Inspect a pair.</b> Click any pair in the lists, or type two ids, and every rule is laid out comparison by
+    comparison: the two values, the similarity or day gap that was measured, and a pass or fail mark on each &mdash;
+    with the verdict at the top (correct link, over-match, under-match, or no link) taken from the ground truth.</li>
+  </ul>
+  <p>Colour is never the only signal in any of it: bars carry their counts beside them and the over-match segment is
+  hatched, so the report reads the same under colour-blindness or in print.</p>
   <p class="dim">The whole loop lives on one page: design a schema, generate it with known duplicates, configure a
   matcher, and read how many records it over- and under-matched &mdash; then change one threshold and run it again.</p>
 </div>

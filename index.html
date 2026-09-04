@@ -269,6 +269,44 @@ details.sc-det summary span{color:var(--muted);font-weight:400}
 .rule-foot button{padding:5px 11px;font-size:.78rem}
 .rule-warn{font-size:.72rem;color:var(--warn)}
 @media(max-width:560px){.cmp select,.cmp input[data-k=arg]{width:100%;flex:1 1 100%}.cmp .and{text-align:left}}
+/* rule diagnostics: bars never carry identity alone -- the counts sit beside
+   them and the over-match segment is hatched, so colour is a bonus, not the code */
+.rbar{display:flex;gap:2px;height:10px;width:100%;min-width:110px;background:var(--soft-bg);border-radius:3px;overflow:hidden}
+.rbar .seg{display:block;height:100%;flex:none}
+.rbar .seg.ok{background:var(--deep);border-radius:0 3px 3px 0}
+.rbar .seg.bad{background:repeating-linear-gradient(135deg,var(--err) 0 3px,#FFF 3px 5px);border-radius:0 3px 3px 0}
+.rbar .seg.miss{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,#FFF 3px 5px);border-radius:0 3px 3px 0}
+.rbar .seg.miss.top{background:var(--warn)}
+.sc-table td.barcell{min-width:130px;width:28%}
+.sc-table tr.sub td{color:var(--muted);font-size:.7rem;border-bottom:1px dashed var(--line)}
+.sc-table tr.sub td:first-child{padding-left:22px}
+.sc-table tr.top td:first-child{font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.7rem;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:8px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.legend i.ok{background:var(--deep)}.legend i.bad{background:repeating-linear-gradient(135deg,var(--err) 0 3px,#FFF 3px 5px)}.legend i.miss{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,#FFF 3px 5px)}.legend i.top{background:var(--warn)}
+.pair-link{cursor:pointer;color:var(--accent-dk);text-decoration:underline dotted;text-underline-offset:3px}
+.pair-link:hover{background:var(--accent-soft)}
+.insp{border:1px solid var(--accent);border-radius:12px;padding:12px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
+.insp-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.8rem}
+.insp-h .ids{font-family:var(--mono);font-size:.76rem}
+.verdict{font-size:.7rem;font-weight:700;border-radius:99px;padding:2px 9px;letter-spacing:.03em;text-transform:uppercase}
+.verdict.tp{background:#E6F2EC;color:#2F6E52}.verdict.fp{background:#F9E9EE;color:#9C3B5A}.verdict.fn{background:#FBF0E3;color:#9A5A16}.verdict.tn{background:var(--soft-bg);color:var(--muted)}
+.insp-rule{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.insp-rule .rh{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:.78rem;font-weight:600;background:var(--soft-bg)}
+.insp-rule .rh .mark{font-family:var(--mono);width:16px;text-align:center}
+.insp-rule.passed .rh{background:#E6F2EC}.insp-rule.failed .rh{background:#F9E9EE}
+.insp-rule .rh .why{margin-left:auto;font-weight:400;color:var(--muted);font-size:.7rem}
+.insp table{width:100%;border-collapse:collapse;font-size:.74rem}
+.insp td{padding:5px 10px;border-top:1px solid var(--line);vertical-align:top}
+.insp td.v{font-family:var(--mono);font-size:.72rem;word-break:break-all}
+.insp td.m{font-family:var(--mono);font-size:.72rem;text-align:right;white-space:nowrap}
+.insp tr.fail td{background:#FDF3F6}.insp tr.fail td:first-child{box-shadow:inset 3px 0 0 var(--err)}
+.insp tr.pass td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.insp tr.skip td{color:var(--muted);font-style:italic}
+.insp .glyph{font-family:var(--mono);width:18px;display:inline-block}
+.insp-pick{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.insp-pick input{width:150px;font-family:var(--mono);font-size:.74rem}
+@media(max-width:560px){.insp td.v{word-break:break-word}}
 
 /* ---------- motion ----------
    This is a tool, not a page you read, so nothing animates on scroll: motion
@@ -513,7 +551,7 @@ import {
   pairsFromClusters, pairKey
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
-import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules } from "./matcher.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1434,7 +1472,10 @@ const grade=x=>x>=0.95?"good":x>=0.8?"warn":"bad";
 function scTile(label,value,cls){return `<div class="tile${cls?" "+cls:""}"><b>${escHtml(value)}</b><span>${escHtml(label)}</span></div>`;}
 function scPairList(list,total,truncated){
   if(!total) return '<div class="hint">none</div>';
-  const body=list.map(p=>escHtml(p[0])+"  ·  "+escHtml(p[1])).join("\n");
+  const line=p=>scDiag
+    ?`<span class="pair-link" data-pair="${escAttr(p[0])}${PAIR_SEP}${escAttr(p[1])}" title="Inspect this pair">${escHtml(p[0])}  ·  ${escHtml(p[1])}</span>`
+    :escHtml(p[0])+"  ·  "+escHtml(p[1]);
+  const body=list.map(line).join("\n");
   return `<div class="sc-list">${body}${truncated?"\n… "+(total-list.length)+" more":""}</div>`;
 }
 function scRender(res,note,rules){
@@ -1469,15 +1510,43 @@ function scRender(res,note,rules){
     h+=`</table></div><div class="hint">Highlighted: best F1. Pick thresholds by cost, not F1 — in patient matching a false merge costs far more than a false split.</div>`;
   }
   if(rules&&rules.length){
-    h+=`<div class="sc-title" style="margin-top:6px">By rule</div><div class="sc-wrap"><table class="sc-table">
-      <tr><th>rule</th><th>compared</th><th>linked</th><th>correct</th><th>over-matches</th></tr>`;
-    for(const r of rules)
-      h+=`<tr><td>${escHtml(r.name)}</td><td>${r.compared.toLocaleString()}</td><td>${r.linked}</td><td>${r.correct}</td><td>${r.over}</td></tr>`;
-    h+=`</table></div><div class="hint">A pair several rules agree on is counted under each, so these columns overlap.</div>`;
+    const maxLinked=Math.max(1,...rules.map(r=>r.linked));
+    h+=`<div class="sc-title" style="margin-top:6px">Which rule matched</div><div class="sc-wrap"><table class="sc-table">
+      <tr><th>rule</th><th>compared</th><th>linked</th><th>correct</th><th>over-matches</th><th></th></tr>`;
+    for(const r of rules){
+      const w=r.linked/maxLinked*100, okW=r.linked?w*r.correct/r.linked:0, badW=r.linked?w*r.over/r.linked:0;
+      h+=`<tr><td>${escHtml(r.name)}</td><td>${r.compared.toLocaleString()}</td><td>${r.linked}</td><td>${r.correct}</td><td>${r.over}</td>
+        <td class="barcell"><div class="rbar" role="img" aria-label="${r.correct} correct, ${r.over} over-matches"><span class="seg ok" style="width:${okW.toFixed(1)}%"></span><span class="seg bad" style="width:${badW.toFixed(1)}%"></span></div></td></tr>`;
+    }
+    h+=`</table></div><div class="legend"><span><i class="ok"></i>correct links</span><span><i class="bad"></i>over-matches</span></div>
+      <div class="hint">A pair several rules agree on is counted under each, so these columns overlap.</div>`;
+  }
+  if(scDiag&&scDiag.misses&&scDiag.misses.inspected){
+    const att=scDiag.misses, total=att.inspected;
+    h+=`<div class="sc-title" style="margin-top:6px">Which comparison failed the under-matches</div>
+      <div class="hint">${total} missed pair${total===1?"":"s"} were run back through every rule. For each rule: how many of those misses each comparison rejected. The solid bar is that rule's biggest blocker, so its threshold is the one to look at first.${ev.missed_matches_truncated?" Only the first "+total+" misses were inspected.":""}</div>
+      <div class="sc-wrap"><table class="sc-table"><tr><th>rule / comparison</th><th>rejected</th><th>share</th><th></th></tr>`;
+    for(const r of att.rules){
+      h+=`<tr class="top"><td>${escHtml(r.name)}</td><td>${total}</td><td>${r.nearMisses?r.nearMisses+" one comparison away":""}</td><td class="barcell"></td></tr>`;
+      const top=Math.max(0,...r.failedOn.map(f=>f.count));
+      for(const f of r.failedOn){
+        const pct=total?f.count/total*100:0;
+        h+=`<tr class="sub"><td>${escHtml(f.field)} <span class="hint">${escHtml(f.label)}</span></td><td>${f.count}</td><td>${pct.toFixed(0)}%</td>
+          <td class="barcell"><div class="rbar" role="img" aria-label="${f.count} of ${total} misses rejected here"><span class="seg miss${f.count===top&&top?" top":""}" style="width:${pct.toFixed(1)}%"></span></div></td></tr>`;
+      }
+    }
+    h+=`</table></div><div class="legend"><span><i class="miss"></i>share of misses this comparison rejected</span><span><i class="top"></i>the rule's biggest blocker</span></div>`;
   }
   h+=`<details class="sc-det"><summary>False merges <span>(${ev.fp}) — pairs linked that should not have been</span></summary>${scPairList(ev.false_merges,ev.fp,ev.false_merges_truncated)}</details>
       <details class="sc-det"><summary>Missed matches <span>(${ev.fn}) — true pairs the matcher did not link</span></summary>${scPairList(ev.missed_matches,ev.fn,ev.missed_matches_truncated)}</details>`;
+  if(scDiag){
+    h+=`<div class="sc-title" style="margin-top:6px">Inspect a pair</div>
+      <div class="hint">Click any pair above, or type two record ids, to see every rule and every comparison with the values that were compared.</div>
+      <div class="insp-pick"><input id="sc-insp-a" placeholder="record id" aria-label="First record id"><span class="hint">↔</span><input id="sc-insp-b" placeholder="record id" aria-label="Second record id"><button type="button" id="sc-insp-go" class="soft">Inspect</button></div>
+      <div id="sc-insp" hidden></div>`;
+  }
   $("sc-results").innerHTML=h;
+  if(scDiag) scBindPairLinks();
   $("sc-results").hidden=false;
   $("sc-copy").hidden=false;
 }
@@ -1572,6 +1641,59 @@ $("sc-rule-add").addEventListener("click",()=>{
 $("sc-rule-suggest").addEventListener("click",scSuggestRules);
 $("sc-rule-clear").addEventListener("click",()=>{scRules=[];renderRules();});
 
+/* ---------- diagnostics: which rule matched, which comparison failed ----------
+   Kept from the last simulated run so a pair in the lists can be inspected on
+   click, and so two ids typed by hand can be explained too. */
+let scDiag=null;
+const PAIR_SEP="\u001f";
+function scVerdict(a,b){
+  const same=scDiag.truePairs.has(pairKey(a,b)), linked=scDiag.linked.has(pairKey(a,b));
+  return same&&linked?"tp":!same&&linked?"fp":same&&!linked?"fn":"tn";
+}
+const VERDICT={tp:["correct link","same person, and the matcher linked them"],fp:["over-match","different people, but the matcher linked them"],
+  fn:["under-match","same person, but the matcher did not link them"],tn:["no link","different people, not linked"]};
+function scInspect(a,b){
+  if(!scDiag) return;
+  const box=$("sc-insp"); if(!box) return;
+  const ra=scDiag.byId.get(String(a)), rb=scDiag.byId.get(String(b));
+  if(!ra||!rb){box.innerHTML=`<div class="insp"><div class="sc-warn">No record with id "${escHtml(String(!ra?a:b))}" in this run.</div></div>`;box.hidden=false;return;}
+  const v=scVerdict(a,b);
+  const ex=explainPair(scDiag.rules,ra,rb);
+  const measure=c=>{
+    if(c.skipped) return "blank, skipped";
+    if(c.measured===null||c.measured===undefined) return c.passed?"equal":"differ";
+    const need=c.arg!==undefined&&c.arg!==""?(c.unit==="similarity"?"  need ≥ "+c.arg:"  need ≤ "+c.arg):"";
+    return c.measured+(c.unit==="similarity"?"":" "+c.unit)+need;
+  };
+  let h=`<div class="insp">
+    <div class="insp-h"><span class="ids">${escHtml(String(a))} &nbsp;↔&nbsp; ${escHtml(String(b))}</span>
+      <span class="verdict ${v}">${VERDICT[v][0]}</span><span class="hint">${VERDICT[v][1]}</span></div>`;
+  for(const r of ex){
+    const failing=r.comparisons.filter(c=>!c.passed).length;
+    h+=`<div class="insp-rule ${r.passed?"passed":"failed"}"><div class="rh"><span class="mark">${r.passed?"✓":"✗"}</span>${escHtml(r.name)}
+      <span class="why">${r.passed?"every comparison passed":r.evaluatedNothing?"nothing to evaluate — every field blank":failing+" comparison"+(failing===1?"":"s")+" failed"}</span></div><table>`;
+    for(const c of r.comparisons){
+      const cls=c.skipped?"skip":c.passed?"pass":"fail";
+      h+=`<tr class="${cls}"><td><span class="glyph">${c.skipped?"–":c.passed?"✓":"✗"}</span>${escHtml(c.field)}<div class="hint">${escHtml(c.label)}${c.arg&&!c.skipped?" "+escHtml(c.arg):""}</div></td>
+        <td class="v">${c.a===""?"<i>blank</i>":escHtml(c.a)}</td><td class="v">${c.b===""?"<i>blank</i>":escHtml(c.b)}</td><td class="m">${escHtml(measure(c))}</td></tr>`;
+    }
+    h+=`</table></div>`;
+  }
+  h+=`</div>`;
+  box.innerHTML=h; box.hidden=false;
+  box.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+function scBindPairLinks(){
+  $("sc-results").querySelectorAll(".pair-link").forEach(el=>el.addEventListener("click",()=>{
+    const [a,b]=el.dataset.pair.split(PAIR_SEP);
+    $("sc-insp-a").value=a; $("sc-insp-b").value=b;
+    scInspect(a,b);
+  }));
+  const go=()=>{const a=$("sc-insp-a").value.trim(), b=$("sc-insp-b").value.trim(); if(a&&b) scInspect(a,b); else scStatus("Type two record ids to inspect.","err");};
+  const btn=$("sc-insp-go"); if(btn) btn.addEventListener("click",go);
+  ["sc-insp-a","sc-insp-b"].forEach(id=>{const el=$(id); if(el) el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();go();}});});
+}
+
 /* Which rule produced which mistake. A pair several rules agree on is counted
    under each of them, so these columns overlap by design. */
 function scRuleStats(sim,labels){
@@ -1599,11 +1721,13 @@ $("sc-run").addEventListener("click",()=>{
     if(Number.isFinite(rf)) opts.reviewFloor=rf;
 
     let pairs, sim=null, parsed=null, note=truth.note;
+    scDiag=null;
     if(scMode==="simulate"){
       if(!scRules.length) throw new Error("Add at least one match rule, or press Suggest rules.");
       sim=runMatcher(truth.records,scRules,{idField:truth.idField});
       pairs=sim.pairs;
       opts.candidates=sim.candidates;    // the rules imply their own blocking
+      opts.maxListed=5000;               // the inspector wants every miss, not a sample
       note+=" · "+scRules.length+" rule"+(scRules.length===1?"":"s")+", "+sim.comparisons.toLocaleString()+" comparisons";
     }else{
       parsed=parsePairsText($("sc-pairs").value,$("sc-header").checked);
@@ -1616,6 +1740,13 @@ $("sc-run").addEventListener("click",()=>{
 
     const res=scoreAll(truth.labels,pairs,opts);
     const ruleStats=sim?scRuleStats(sim,truth.labels):null;
+    if(sim){
+      const byId=new Map(truth.records.map(r=>[String(r[truth.idField]),r]));
+      const rulesSnap=JSON.parse(JSON.stringify(scRules));
+      scDiag={rules:rulesSnap,byId,truePairs:pairsFromClusters(truth.labels),
+        linked:new Set(sim.pairs.map(p=>pairKey(p[0],p[1]))),
+        misses:attributeMisses(rulesSnap,byId,res.evaluation.missed_matches)};
+    }
     scLast={truth:truthSummary(truth.labels),...res};
     if(ruleStats) scLast.rules=ruleStats;
     scRender(res,note,ruleStats);
