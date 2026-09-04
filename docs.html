@@ -134,7 +134,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--accent)}
   press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
-    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a><a href="#scoring">Scoring a matcher</a>
+    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a><a href="#scoring">Scoring a matcher</a><a href="#simulate">Simulating a matcher</a>
     <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#modules">Extra type modules</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a><a href="#spec">Format spec</a>
   </div>
 </div>
@@ -309,6 +309,51 @@ below       score &lt; 0.78     left alone                   &rarr; recall after
   The same scorer is exposed as <code>POST /v1/score</code> in the <a href="https://github.com/dnguye/Test-data-generator/blob/main/api/README.md">HTTP API</a>,
   where the truth can be regenerated from the same <code>(schemaId, count, seed)</code> that produced the data, and it
   lives in <code>scoring.js</code> for use from Node.</p>
+</div>
+
+<div class="card" id="simulate">
+  <h2>Simulating a matcher</h2>
+  <p>You do not need a matching engine to use the scorer. Switch step 2 of <b>Score matcher</b> from <i>Paste pairs</i>
+  to <b>Simulate a matcher</b> and configure one here; it runs against the generated records and is scored the same way.</p>
+  <h3>Rules and comparisons</h3>
+  <p>The model is the one MDM products use, because it is the one people already think in:</p>
+  <pre><code>a RULE  is a set of field comparisons, ALL of which must pass   (and)
+a PAIR  is linked if ANY rule passes                            (or)</code></pre>
+  <p>So a strict rule sits beside a loose one and a pair linked by either is linked. Each rule carries a
+  <b>confidence</b>, and a pair's score is the highest confidence among the rules that passed it &mdash; which is what
+  lets a strict rule auto-merge while a loose one only earns a place in the review queue.</p>
+  <table>
+    <tr><th>Comparison</th><th>Matches when</th></tr>
+    <tr><td>is exactly</td><td>the two values are identical, character for character</td></tr>
+    <tr><td>matches ignoring case and punctuation</td><td><code>O'Brien-Smith</code> equals <code>obrien smith</code></td></tr>
+    <tr><td>first N characters match</td><td>a shared prefix, after the same normalisation</td></tr>
+    <tr><td>sounds alike (Soundex)</td><td><code>Smith</code> equals <code>Smyth</code>; the classic surname coder</td></tr>
+    <tr><td>same words in any order</td><td><code>John Smith</code> equals <code>Smith, John</code></td></tr>
+    <tr><td>Jaro-Winkler at least</td><td>similarity reaches your threshold; favours a shared start</td></tr>
+    <tr><td>Levenshtein at least</td><td>normalized edit distance reaches your threshold</td></tr>
+    <tr><td>Jaro-Winkler on sorted words at least</td><td>fuzzy <em>and</em> order-insensitive</td></tr>
+    <tr><td>numbers within</td><td>numeric values differ by no more than your tolerance</td></tr>
+    <tr><td>dates within</td><td>parseable dates differ by no more than N days</td></tr>
+  </table>
+  <p><b>Suggest rules</b> reads the field names and proposes a starting set to edit. Nothing about it is clever; it
+  exists so nobody faces an empty rule builder wondering what a rule looks like.</p>
+  <h3>Blanks</h3>
+  <p>By default a blank value fails its comparison: absence of evidence is not agreement. Tick <b>blanks still agree</b>
+  and a blank is skipped instead, which is what you want when an optional field like a middle initial should not sink an
+  otherwise convincing name match. A rule never passes on skipped comparisons alone &mdash; at least one comparison has to
+  have actually been evaluated, or a record with every field blank would link to the entire file.</p>
+  <h3>Blocking is derived, not configured</h3>
+  <p>A rule containing an equality comparison &mdash; exact, first-N, Soundex, same-words &mdash; can only ever match records
+  that agree on it, so those comparisons compose into a key and the rule is evaluated inside key groups instead of over
+  every pair. That is <a href="#scoring">blocking</a>, arrived at for free. A rule built only of fuzzy comparisons has no
+  such key and costs the full n&sup2;; the builder says so under the rule, and a run that would exceed the comparison
+  budget is refused with an explanation rather than freezing the tab.</p>
+  <h3>Reading the per-rule table</h3>
+  <p>The report gains a row per rule: how many pairs it compared, how many it linked, how many of those were right, and
+  how many were <b>over-matches</b>. That is how you find the single rule that is too loose without guessing. A pair
+  several rules agree on is counted under each of them, so the columns overlap by design.</p>
+  <p class="dim">The whole loop lives on one page: design a schema, generate it with known duplicates, configure a
+  matcher, and read how many records it over- and under-matched &mdash; then change one threshold and run it again.</p>
 </div>
 
 <div class="card" id="formulas">
