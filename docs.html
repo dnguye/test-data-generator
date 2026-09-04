@@ -286,8 +286,11 @@ precision = TP / (TP + FP)      recall = TP / (TP + FN)      F1 = their harmonic
     penalised for a pair it logically implied. Untick <i>close under transitivity</i> to score the raw links.</li>
     <li><b>It scores blocking separately.</b> A true pair whose two records land in different blocks can never be found,
     whatever the threshold. Pick a <i>blocking key field</i> in step 1 (or paste your candidate pairs) and the dialog
-    reports <b>pair completeness</b> &mdash; the fraction of true pairs that survive blocking, which is your recall
-    ceiling &mdash; alongside the <b>reduction ratio</b>, how much of the pair space blocking cut. The two trade off.</li>
+    reports <b>pair completeness</b> &mdash; the fraction of true pairs that survive blocking, which caps the recall
+    you can get from direct matches &mdash; alongside the <b>reduction ratio</b>, how much of the pair space blocking
+    cut. The two trade off. One subtlety: it is not a cap on <em>final</em> recall. With transitive closure on,
+    A&ndash;B and B&ndash;C imply A&ndash;C even when A and C sat in different blocks, so a chain through a shared
+    record can recover a pair that blocking never offered the matcher.</li>
   </ul>
   <h3>With scores: the three numbers that matter</h3>
   <p>If each pair carries a score, the dialog also sweeps the threshold from 0.5 to 1.0 and shows precision and recall
@@ -363,6 +366,12 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   </ul>
   <p>Colour is never the only signal in any of it: bars carry their counts beside them and the over-match segment is
   hatched, so the report reads the same under colour-blindness or in print.</p>
+  <h3>Export to Excel</h3>
+  <p><b>Export to Excel</b> writes the report as a workbook, one sheet per table: <i>Summary</i> (every headline number,
+  the source and any warnings), <i>Threshold sweep</i>, <i>By rule</i>, <i>Misses by comparison</i>, <i>False merges</i>,
+  <i>Missed matches</i>, <i>Lost to blocking</i> and <i>Rules</i>. When a simulation produced the results, each mistaken
+  pair carries the rules that matched it and, for the misses, the comparison that rejected it with the value measured.
+  Percentages are stored as fractions with a percent format so they sort and average as numbers.</p>
   <p class="dim">The whole loop lives on one page: design a schema, generate it with known duplicates, configure a
   matcher, and read how many records it over- and under-matched &mdash; then change one threshold and run it again.</p>
 </div>
