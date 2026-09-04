@@ -307,7 +307,7 @@ button:active{transform:translateY(1px)}
     <button id="btn-export" class="ghost">Export schema</button>
     <button id="btn-score" class="ghost" title="Score a matcher's output against the match_id ground truth">Score matcher</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
-    <button id="btn-download-all" class="ghost" style="display:none">Download all</button>
+    <button id="btn-download-all" class="ghost" style="display:none" title="Every entity's file plus schema.json, together in one .zip">Download all</button>
     <button id="btn-download" class="primary">Download</button>
   </div>
 </header>
@@ -477,6 +477,7 @@ import {
 import {
   scoreAll, truthFromRecords, truthSummary, parsePairsText, parseRecordsText, parseLabelsText, looksLikeHeader
 } from "./scoring.js";
+import { zipFiles, uniqueEntryName } from "./zip.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -642,7 +643,7 @@ const $fields=$("fields");
 let dragIdx=null;
 function render(){
   renderTabs();
-  $("btn-download-all").style.display=entities.length>1?"":"none";
+  $("btn-download-all").style.display=entities.some(e=>e.fields.length)?"":"none";
   $fields.innerHTML="";
   fields.forEach((f,idx)=>{
     const row=document.createElement("div");
@@ -1160,15 +1161,35 @@ $("btn-download").addEventListener("click",()=>{
     setStatus(errors.length?("Downloaded with errors: "+errors.join(" | ")):("Downloaded "+r.rows.length+" "+r.en.name+" records."),errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
 });
-$("btn-download-all").addEventListener("click",()=>{
+/* One archive, not one download per entity: a click that starts several
+   downloads in a row is what browsers interrupt with "wants to download
+   multiple files", and the files of one run belong together anyway -- their
+   ids only line up because they came from the same run. */
+function zipFileName(){
+  const seed=$("seed").value.trim();
+  return "test-data"+(seed?"-seed-"+slug(seed):"")+".zip";
+}
+$("btn-download-all").addEventListener("click",async ()=>{
+  if(!entities.some(e=>e.fields.length)){setStatus("Add at least one field first.","err");return;}
+  const btn=$("btn-download-all");
+  btn.disabled=true;
+  setStatus("Generating "+entities.length+" file"+(entities.length===1?"":"s")+"…","");
   try{
     const {results,errors}=runAll(entities,entRowCount,$("seed").value);
-    results.forEach((r,ix)=>{
-      const {out,mime,ext}=serializeRows(r.rows,r.en);
-      setTimeout(()=>saveBlob(out,mime,slug(r.en.name)+"."+ext),ix*300);
+    const taken=new Set();
+    const files=results.map(r=>{
+      const {out,ext}=serializeRows(r.rows,r.en);
+      return {name:uniqueEntryName(slug(r.en.name),ext,taken),text:out};
     });
-    setStatus(errors.length?("Downloaded with errors: "+errors.join(" | ")):("Downloading "+results.length+" files — allow multiple downloads if the browser asks."),errors.length?"err":"ok");
+    /* the schema rides along, so the archive says how it was made -- the same
+       file Export schema writes, which with the seed reproduces these rows */
+    files.push({name:"schema.json",text:JSON.stringify(schemaObj(),null,2)});
+    const rows=results.reduce((n,r)=>n+r.rows.length,0);
+    saveBlob(await zipFiles(files),"application/zip",zipFileName());
+    setStatus(errors.length?("Downloaded with errors: "+errors.join(" | "))
+      :("Downloaded "+results.length+" file"+(results.length===1?"":"s")+" ("+rows+" records) plus schema.json as one .zip."),errors.length?"err":"ok");
   }catch(e){setStatus("Error: "+e.message,"err");}
+  finally{btn.disabled=false;}
 });
 $("btn-add").addEventListener("click",()=>{fields.push(newField());renderT();});
 $("btn-example").addEventListener("click",()=>{
