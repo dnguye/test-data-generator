@@ -127,6 +127,31 @@ check('...and they validate', !throws(() => M.runMatcher(
   suggested, { idField: 'patient_id' })));
 check('an unrecognisable schema still gets one starter rule', M.suggestRules(['alpha', 'beta']).length === 1);
 
+console.log('=== 7b. explaining a pair, attributing the misses ===');
+{
+  const a = RECS[0], b = RECS[2];                      // Smith / Smyth, same dob, emails differ only in case
+  const rules = [
+    { name: 'strict', confidence: '1', comparisons: [{ field: 'last', kind: 'exact' }, { field: 'dob', kind: 'exact' }] },
+    { name: 'fuzzy', confidence: '0.8', blankAgrees: true, comparisons: [{ field: 'last', kind: 'jw', arg: '0.85' }, { field: 'dob', kind: 'days', arg: '1' }, { field: 'email', kind: 'normalized' }] }
+  ];
+  const ex = M.explainPair(rules, a, b);
+  check('one entry per rule, in order', ex.length === 2 && ex[0].name === 'strict' && ex[1].name === 'fuzzy');
+  check('strict fails, and says which comparison', !ex[0].passed && !ex[0].comparisons[0].passed && ex[0].comparisons[1].passed, ex[0]);
+  check('fuzzy passes with every comparison marked passed', ex[1].passed && ex[1].comparisons.every(c => c.passed), ex[1]);
+  check('a fuzzy comparison carries the measured similarity', ex[1].comparisons[0].measured > 0.85 && ex[1].comparisons[0].unit === 'similarity', ex[1].comparisons[0]);
+  check('a date comparison carries the measured day gap', ex[1].comparisons[1].measured === 0 && ex[1].comparisons[1].unit === 'days', ex[1].comparisons[1]);
+  check('both values are shown as strings', ex[0].comparisons[0].a === 'Smith' && ex[0].comparisons[0].b === 'Smyth');
+  const blankEx = M.explainPair([{ name: 'r', blankAgrees: true, comparisons: [{ field: 'email', kind: 'exact' }] }], RECS[0], RECS[1]);
+  check('a skipped blank is marked skipped, and a rule with nothing evaluated fails', blankEx[0].comparisons[0].skipped && blankEx[0].evaluatedNothing && !blankEx[0].passed, blankEx[0]);
+  const byId = new Map(RECS.map(r => [r.id, r]));
+  const att = M.attributeMisses(rules, byId, [['1', '3'], ['4', '5']]);
+  check('every miss inspected', att.inspected === 2);
+  check('strict failed 1-3 on surname and 4-5 on dob: counted per comparison',
+    att.rules[0].failedOn[0].count === 1 && att.rules[0].failedOn[1].count === 1, att.rules[0]);
+  check('fuzzy was one comparison away on 4-5: surname agrees, blank email skipped, only the dates fail', att.rules[1].nearMisses === 1 && att.rules[1].failedOn[1].count === 1, att.rules[1]);
+  check('unknown ids are skipped, not fatal', M.attributeMisses(rules, byId, [['1', 'nope']]).inspected === 0);
+}
+
 console.log('=== 8. against generated data, then scored ===');
 E.useFaker(loadFaker().faker);
 const en = E.newEntity('Patients');

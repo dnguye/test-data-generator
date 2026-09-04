@@ -91,18 +91,24 @@ export const COMPARISONS = [
   { id: "tokens", label: "same words in any order", arg: null,
     key: v => tokenKey(v), test: (a, b) => tokenKey(a) === tokenKey(b) },
   { id: "jw", label: "Jaro-Winkler at least", arg: "threshold", argLabel: "similarity", argDefault: "0.90",
-    key: null, test: (a, b, t) => jaroWinkler(String(a), String(b)) >= (parseFloat(t) || 0.9) },
+    key: null, measure: (a, b) => jaroWinkler(String(a), String(b)), unit: "similarity",
+    test: (a, b, t) => jaroWinkler(String(a), String(b)) >= (parseFloat(t) || 0.9) },
   { id: "lev", label: "Levenshtein at least", arg: "threshold", argLabel: "similarity", argDefault: "0.85",
-    key: null, test: (a, b, t) => levSim(String(a), String(b)) >= (parseFloat(t) || 0.85) },
+    key: null, measure: (a, b) => levSim(String(a), String(b)), unit: "similarity",
+    test: (a, b, t) => levSim(String(a), String(b)) >= (parseFloat(t) || 0.85) },
   { id: "jwTokens", label: "Jaro-Winkler on sorted words at least", arg: "threshold", argLabel: "similarity", argDefault: "0.90",
-    key: null, test: (a, b, t) => jaroWinkler(tokenKey(a), tokenKey(b)) >= (parseFloat(t) || 0.9) },
+    key: null, measure: (a, b) => jaroWinkler(tokenKey(a), tokenKey(b)), unit: "similarity",
+    test: (a, b, t) => jaroWinkler(tokenKey(a), tokenKey(b)) >= (parseFloat(t) || 0.9) },
   { id: "numeric", label: "numbers within", arg: "n", argLabel: "±", argDefault: "1",
-    key: null, test: (a, b, n) => {
+    key: null, unit: "difference",
+    measure: (a, b) => { const x = parseFloat(a), y = parseFloat(b); return Number.isFinite(x) && Number.isFinite(y) ? Math.abs(x - y) : null; },
+    test: (a, b, n) => {
       const x = parseFloat(a), y = parseFloat(b);
       return Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= (parseFloat(n) || 0);
     } },
   { id: "days", label: "dates within", arg: "n", argLabel: "days", argDefault: "1",
-    key: null, test: (a, b, n) => { const d = days(a, b); return d !== null && d <= (parseFloat(n) || 0); } }
+    key: null, unit: "days", measure: (a, b) => days(a, b),
+    test: (a, b, n) => { const d = days(a, b); return d !== null && d <= (parseFloat(n) || 0); } }
 ];
 const BY_ID = new Map(COMPARISONS.map(c => [c.id, c]));
 export function comparison(id) { return BY_ID.get(id) || null; }
@@ -312,6 +318,63 @@ export function runMatcher(records, rules, options = {}) {
     totalPossible: allPairs,
     unblockedRules: unblocked
   };
+}
+
+/* ---------- explaining one pair ----------
+   The report says HOW MANY pairs a rule got wrong; this says WHY, for one pair:
+   every rule, every comparison, the two values, the number that was measured
+   and the verdict. It is what turns "recall 0.22" into "rule 2 keeps failing
+   on birth_date because the dates are mangled" -- the diagnosis that decides
+   which threshold to move. */
+export function explainPair(rules, a, b) {
+  return rules.map((rule, ri) => {
+    let evaluated = 0, passed = true;
+    const comparisons = rule.comparisons.map(c => {
+      const def = comparison(c.kind);
+      const va = getPath(a, c.field), vb = getPath(b, c.field);
+      const row = { field: c.field, kind: c.kind, label: def ? def.label : c.kind, arg: c.arg,
+        a: va === undefined || va === null ? "" : String(va), b: vb === undefined || vb === null ? "" : String(vb),
+        measured: null, unit: def && def.unit || null, skipped: false, passed: false };
+      if (!def) { passed = false; return row; }
+      if (isBlank(va) || isBlank(vb)) {
+        if (rule.blankAgrees) { row.skipped = true; row.passed = true; return row; }
+        passed = false; return row;
+      }
+      if (def.measure) { const m = def.measure(va, vb); row.measured = m === null || m === undefined ? null : Math.round(m * 1000) / 1000; }
+      row.passed = !!def.test(va, vb, c.arg);
+      evaluated++;
+      if (!row.passed) passed = false;
+      return row;
+    });
+    if (evaluated === 0) passed = false;      // nothing actually compared: the vacuous-pass guard
+    return { index: ri, name: rule.name || ("Rule " + (ri + 1)), passed, evaluatedNothing: evaluated === 0, comparisons };
+  });
+}
+
+/* Which comparison sank each missed pair, tallied per rule. A miss can fail
+   several comparisons of the same rule; every one is counted, because every one
+   would have to be loosened for that rule to catch it. Also counts the misses a
+   rule was ONE comparison away from, which is where a threshold nudge pays. */
+export function attributeMisses(rules, byId, missedPairs) {
+  const out = rules.map((r, i) => ({
+    index: i, name: r.name || ("Rule " + (i + 1)), misses: missedPairs.length, nearMisses: 0, blankOnly: 0,
+    failedOn: r.comparisons.map(c => ({ field: c.field, kind: c.kind, label: (comparison(c.kind) || {}).label || c.kind, count: 0 }))
+  }));
+  let inspected = 0;
+  for (const [ia, ib] of missedPairs) {
+    const a = byId.get(String(ia)), b = byId.get(String(ib));
+    if (!a || !b) continue;
+    inspected++;
+    const ex = explainPair(rules, a, b);
+    ex.forEach((rx, ri) => {
+      if (rx.passed) return;
+      const failing = rx.comparisons.filter(c => !c.passed);
+      failing.forEach(c => { const slot = out[ri].failedOn.find(f => f.field === c.field && f.kind === c.kind); if (slot) slot.count++; });
+      if (failing.length === 1) out[ri].nearMisses++;
+      if (rx.evaluatedNothing) out[ri].blankOnly++;
+    });
+  }
+  return { rules: out, inspected };
 }
 
 /* ---------- starting points ----------
