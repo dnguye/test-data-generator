@@ -16,6 +16,7 @@ ground truth (`POST /v1/score`). It is not needed to use the tool.
 | `index.html` | the whole app — markup, styles and UI |
 | `engine.js` | the generation core: types, seeding, formulas, references, duplicates, serializers |
 | `scoring.js` | ground-truth scoring: pairwise precision / recall against `match_id`, blocking completeness, threshold sweep, review bands |
+| `zip.js` | the archive writer behind *Download all* — one `.zip` per run, no dependencies |
 | `faker.iife.js` | the vendored [@faker-js/faker](https://fakerjs.dev) bundle |
 | `faker-ext.js` | the extra generator modules (see below) |
 | `api/` | the optional HTTP API |
@@ -34,11 +35,13 @@ seed produce the same rows through the API as they do on the page.
 
 `node tests/score.mjs` runs a 97-check audit of `scoring.js` and `POST /v1/score`: the worked example from the design notes, transitive closure, blocking completeness, threshold sweep and review bands, pasted-file parsing, an oracle and a naive matcher scored against real engine output, and truth regenerated from `(schemaId, count, seed)`.
 
+`node tests/zip.mjs` runs a 36-check audit of `zip.js`, with every archive read back and CRC-verified by Python's `zipfile` module rather than by the writer that produced it.
+
 `node tests/api.mjs` runs a 71-check audit of the HTTP API: the reproducibility contract, schema validation, multi-entity row counts, sandbox isolation, and transport behaviour.
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `engine.js`, `scoring.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `engine.js`, `scoring.js`, `zip.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
@@ -97,7 +100,7 @@ Structural edits — adding, removing, duplicating, reordering a field, switchin
 
 Each field is a card: name on top, type picker right below (click it and type to search), and options underneath. Cards can be dragged to reorder and duplicated in one click, and each shows a live sample value. The preview updates as you edit (Ctrl/Cmd+Enter refreshes on demand) and has a copy button.
 
-Need linked record types — Contacts pointing at real Account ids? Add an **entity tab** per record type; tabs generate left-to-right in one run, and a **Reference** field on the child picks from the values a parent entity actually produced (random many-to-one, or `unique` for one-to-one). *Download all* saves one file per entity from a single run, so IDs line up across files, and a seed reproduces the whole linked dataset.
+Need linked record types — Contacts pointing at real Account ids? Add an **entity tab** per record type; tabs generate left-to-right in one run, and a **Reference** field on the child picks from the values a parent entity actually produced (random many-to-one, or `unique` for one-to-one). *Download all* saves one `.zip` holding every entity's file from a single run — so IDs line up across files — plus the `schema.json` that produced them; a seed reproduces the whole linked dataset.
 
 Testing a matching or dedup engine? The **dups** control emits fuzzed duplicate variants of a chosen share of records (three intensity presets, damage picked by field type — typos in names, reformatted phones, shifted dates) with a **match_id** ground-truth column: originals and their variants share a value, so scoring a matcher is a group-by. UUIDs regenerate per variant; references stay intact. A fourth level, **targeted**, sets a per-field similarity threshold instead: pick Jaro-Winkler or Levenshtein and a value like 0.90, and variants are fuzzed until they land at that similarity to the original (achieved averages are reported live).
 
