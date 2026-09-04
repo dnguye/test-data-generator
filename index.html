@@ -252,6 +252,23 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 details.sc-det summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--ink)}
 details.sc-det summary span{color:var(--muted);font-weight:400}
 .sc-wrap{overflow-x:auto}
+/* rule builder */
+.rule{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px;display:flex;flex-direction:column;gap:8px}
+.rule + .rule{margin-top:8px}
+.rule-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rule-h .rule-name{flex:1;min-width:120px;font-weight:600;font-size:.84rem}
+.rule-h label{font-size:.7rem;font-weight:600;color:var(--muted)}
+.rule-h input[type=number]{width:70px}
+.rule-n{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);flex:none}
+.cmp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cmp select{flex:1;min-width:110px;font-size:.8rem}
+.cmp select[data-k=kind]{flex:1.3}
+.cmp input[data-k=arg]{width:82px;flex:none}
+.cmp .and{font-family:var(--mono);font-size:.62rem;color:var(--muted);width:26px;flex:none;text-align:right}
+.rule-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rule-foot button{padding:5px 11px;font-size:.78rem}
+.rule-warn{font-size:.72rem;color:var(--warn)}
+@media(max-width:560px){.cmp select,.cmp input[data-k=arg]{width:100%;flex:1 1 100%}.cmp .and{text-align:left}}
 
 /* ---------- motion ----------
    This is a tool, not a page you read, so nothing animates on scroll: motion
@@ -407,12 +424,29 @@ button:active{transform:translateY(1px)}
 
     <section class="sc-sec">
       <div class="sc-title">2 &middot; What the matcher linked</div>
+      <div class="seg" id="sc-mode" role="tablist" aria-label="Where the matcher output comes from">
+        <button type="button" data-mode="paste" class="on" role="tab">Paste pairs</button><button type="button" data-mode="simulate" role="tab">Simulate a matcher</button>
+      </div>
+      <div id="sc-paste-mode">
       <textarea id="sc-pairs" rows="6" placeholder="One linked pair per line:   id_a,id_b   or   id_a,id_b,score
 or JSON:   [[&quot;a&quot;,&quot;b&quot;,0.93], &hellip;]   /   [{&quot;a&quot;:&hellip;,&quot;b&quot;:&hellip;,&quot;score&quot;:&hellip;}, &hellip;]
 Scores are optional. With scores you also get a threshold sweep and the auto-merge / review bands." aria-label="Matcher output"></textarea>
       <div class="sc-row">
         <input type="file" id="sc-pairs-file" accept=".csv,.tsv,.txt,.json,text/*,application/json" aria-label="Choose the matcher output file">
         <label class="chk"><input type="checkbox" id="sc-header"> first line is a header</label>
+      </div>
+      </div>
+      <div id="sc-sim-mode" hidden>
+        <div class="hint">A rule links two records when <b>every</b> comparison in it passes. A pair is linked if <b>any</b> rule passes.
+        The matcher runs here, on the generated records, so you can try rules without leaving the page.</div>
+        <div id="sc-rules"></div>
+        <div class="sc-row">
+          <button type="button" id="sc-rule-add" class="dashed">+ Add rule</button>
+          <button type="button" id="sc-rule-suggest" class="ghost">Suggest rules from these fields</button>
+          <button type="button" id="sc-rule-clear" class="ghost">Clear</button>
+        </div>
+      </div>
+      <div class="sc-row">
         <label class="chk"><input type="checkbox" id="sc-close-t" checked> close under transitivity (A&ndash;B + B&ndash;C implies A&ndash;C)</label>
       </div>
       <div class="sc-row">
@@ -475,9 +509,11 @@ import {
   jaroWinkler, SIM_FNS, fieldKind
 } from "./engine.js";
 import {
-  scoreAll, truthFromRecords, truthSummary, parsePairsText, parseRecordsText, parseLabelsText, looksLikeHeader
+  scoreAll, truthFromRecords, truthSummary, parsePairsText, parseRecordsText, parseLabelsText, looksLikeHeader,
+  pairsFromClusters, pairKey
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1313,6 +1349,7 @@ function scSetSrc(v){
   $("sc-src").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.src===v));
   $("sc-src-entity").hidden=v!=="entity";
   $("sc-src-paste").hidden=v!=="paste";
+  renderRules();                       // the fields a rule can compare just changed
 }
 $("sc-src").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>scSetSrc(b.dataset.src)));
 /* the generated rows for the current entity at the toolbar seed, exactly as
@@ -1343,7 +1380,8 @@ function scTruthFromEntity(){
       blocks.set(String(r[idField]),String(v??""));
     }
   }
-  return {labels,blocks,note:"answer key regenerated from "+curEnt().name+" at seed "+$("seed").value.trim()+" ("+matchField+")"};
+  return {labels,blocks,records:flat,idField,
+    note:"answer key regenerated from "+curEnt().name+" at seed "+$("seed").value.trim()+" ("+matchField+")"};
 }
 function scFillPasteCols(){
   const t=$("sc-truth-text").value.trim();
@@ -1366,7 +1404,8 @@ function scTruthFromPaste(){
   const idc=$("sc-idcol").value, mc=$("sc-matchcol").value;
   if(!idc||!mc) throw new Error("Choose the id column and the match column.");
   if(idc===mc) throw new Error("The id column and the match column are the same column.");
-  return {labels:truthFromRecords(records,idc,mc),blocks:null,note:records.length+" records pasted · id "+idc+" · match "+mc};
+  return {labels:truthFromRecords(records,idc,mc),blocks:null,records,idField:idc,
+    note:records.length+" records pasted · id "+idc+" · match "+mc};
 }
 function scReadFileInto(input,textarea,after){
   input.addEventListener("change",e=>{
@@ -1398,7 +1437,7 @@ function scPairList(list,total,truncated){
   const body=list.map(p=>escHtml(p[0])+"  ·  "+escHtml(p[1])).join("\n");
   return `<div class="sc-list">${body}${truncated?"\n… "+(total-list.length)+" more":""}</div>`;
 }
-function scRender(res,note){
+function scRender(res,note,rules){
   const ev=res.evaluation, t=res.truth;
   let h=`<div class="sc-note"><b>Ground truth:</b> ${t.records} records · ${t.clusters} clusters (${t.singletons} singletons) · <b>${t.true_pairs} true pairs</b>${note?" · "+escHtml(note):""}</div>`;
   for(const w of res.warnings) h+=`<div class="sc-warn">${escHtml(w)}</div>`;
@@ -1429,30 +1468,162 @@ function scRender(res,note){
     for(const r of res.sweep) h+=`<tr${r===best?' class="pick"':""}><td>${r.threshold.toFixed(2)}</td><td>${r.linked}</td><td>${r.tp}</td><td>${r.fp}</td><td>${r.fn}</td><td>${r.precision.toFixed(3)}</td><td>${r.recall.toFixed(3)}</td><td>${r.f1.toFixed(3)}</td></tr>`;
     h+=`</table></div><div class="hint">Highlighted: best F1. Pick thresholds by cost, not F1 — in patient matching a false merge costs far more than a false split.</div>`;
   }
+  if(rules&&rules.length){
+    h+=`<div class="sc-title" style="margin-top:6px">By rule</div><div class="sc-wrap"><table class="sc-table">
+      <tr><th>rule</th><th>compared</th><th>linked</th><th>correct</th><th>over-matches</th></tr>`;
+    for(const r of rules)
+      h+=`<tr><td>${escHtml(r.name)}</td><td>${r.compared.toLocaleString()}</td><td>${r.linked}</td><td>${r.correct}</td><td>${r.over}</td></tr>`;
+    h+=`</table></div><div class="hint">A pair several rules agree on is counted under each, so these columns overlap.</div>`;
+  }
   h+=`<details class="sc-det"><summary>False merges <span>(${ev.fp}) — pairs linked that should not have been</span></summary>${scPairList(ev.false_merges,ev.fp,ev.false_merges_truncated)}</details>
       <details class="sc-det"><summary>Missed matches <span>(${ev.fn}) — true pairs the matcher did not link</span></summary>${scPairList(ev.missed_matches,ev.fn,ev.missed_matches_truncated)}</details>`;
   $("sc-results").innerHTML=h;
   $("sc-results").hidden=false;
   $("sc-copy").hidden=false;
 }
+
+/* ---------- simulate a matcher ----------
+   Rather than pasting what an external engine linked, configure rules here and
+   let the page match the generated records itself. Same scoring either way. */
+let scMode="paste", scRules=[];
+function scSetMode(v){
+  scMode=v;
+  $("sc-mode").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.mode===v));
+  $("sc-paste-mode").hidden=v!=="paste";
+  $("sc-sim-mode").hidden=v!=="simulate";
+  if(v==="simulate"&&!scRules.length) scSuggestRules();
+}
+$("sc-mode").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>scSetMode(b.dataset.mode)));
+
+/* what a rule may compare: the entity's own fields, or the pasted file's columns */
+function scMatchFields(){
+  return scSrc==="paste"?scTruthCols.slice():scNonRepeating(curEnt()).map(f=>f.name);
+}
+function scSuggestRules(){
+  const fields=scMatchFields();
+  if(!fields.length){scStatus("No fields to build rules from.","err");return;}
+  scRules=suggestRules(fields);
+  renderRules();
+  scStatus("Suggested "+scRules.length+" rule"+(scRules.length===1?"":"s")+" from the field names — edit freely.","ok");
+}
+function renderRules(){
+  const box=$("sc-rules"); if(!box) return;
+  const fields=scMatchFields();
+  const opt=(v,sel)=>`<option value="${escAttr(v)}"${v===sel?" selected":""}>${escHtml(v)}</option>`;
+  box.innerHTML=scRules.map((rule,ri)=>{
+    const cmps=rule.comparisons.map((c,ci)=>{
+      const def=comparison(c.kind)||COMPARISONS[0];
+      return `<div class="cmp" data-r="${ri}" data-c="${ci}">
+        <span class="and">${ci?"and":"if"}</span>
+        <select data-k="field" aria-label="Field">${fields.length?fields.map(f=>opt(f,c.field)).join(""):'<option value="">— no fields —</option>'}</select>
+        <select data-k="kind" aria-label="Comparison">${COMPARISONS.map(d=>`<option value="${d.id}"${d.id===c.kind?" selected":""}>${escHtml(d.label)}</option>`).join("")}</select>
+        ${def.arg?`<input type="text" data-k="arg" value="${escAttr(c.arg)}" aria-label="${escAttr(def.argLabel||"value")}" title="${escAttr(def.argLabel||"")}" placeholder="${escAttr(def.argLabel||"")}">`:""}
+        <button type="button" class="icon" data-act="cmp-del" title="Remove comparison" aria-label="Remove comparison">${ICONS.del}</button>
+      </div>`;
+    }).join("");
+    /* a rule with no equality comparison has nothing to narrow on, so it costs
+       every pair -- worth saying before they press Score on 10,000 rows */
+    const blocked=rule.comparisons.some(c=>{const d=comparison(c.kind);return d&&d.key;});
+    return `<div class="rule" data-r="${ri}">
+      <div class="rule-h">
+        <span class="rule-n">rule ${ri+1}</span>
+        <input class="rule-name" data-k="name" value="${escAttr(rule.name||"")}" placeholder="name this rule" aria-label="Rule name" spellcheck="false">
+        <label for="rconf${ri}">confidence</label>
+        <input id="rconf${ri}" type="number" data-k="confidence" value="${escAttr(rule.confidence)}" min="0" max="1" step="0.01">
+        <button type="button" class="icon" data-act="rule-del" title="Remove rule" aria-label="Remove rule">${ICONS.del}</button>
+      </div>
+      ${cmps||'<div class="hint">No comparisons yet — add one.</div>'}
+      <div class="rule-foot">
+        <button type="button" class="dashed" data-act="cmp-add">+ comparison</button>
+        <label class="chk"><input type="checkbox" data-k="blankAgrees"${rule.blankAgrees?" checked":""}> blanks still agree</label>
+        ${blocked?"":'<span class="rule-warn">no exact, prefix or Soundex comparison, so this rule compares every pair</span>'}
+      </div>
+    </div>`;
+  }).join("")||'<div class="hint">No rules yet. Add one, or let the schema suggest a starting set.</div>';
+
+  box.querySelectorAll(".rule").forEach(el=>{
+    const ri=+el.dataset.r;
+    el.querySelector("[data-k=name]").addEventListener("input",e=>{scRules[ri].name=e.target.value;});
+    el.querySelector("[data-k=confidence]").addEventListener("input",e=>{scRules[ri].confidence=e.target.value;});
+    el.querySelector("[data-k=blankAgrees]").addEventListener("change",e=>{scRules[ri].blankAgrees=e.target.checked;});
+    el.querySelector("[data-act=rule-del]").addEventListener("click",()=>{scRules.splice(ri,1);renderRules();});
+    el.querySelector("[data-act=cmp-add]").addEventListener("click",()=>{
+      scRules[ri].comparisons.push(newComparison(scMatchFields()[0]||""));renderRules();
+    });
+  });
+  box.querySelectorAll(".cmp").forEach(el=>{
+    const ri=+el.dataset.r, ci=+el.dataset.c;
+    el.querySelector("[data-k=field]").addEventListener("change",e=>{scRules[ri].comparisons[ci].field=e.target.value;});
+    el.querySelector("[data-k=kind]").addEventListener("change",e=>{
+      const c=scRules[ri].comparisons[ci], d=comparison(e.target.value);
+      c.kind=e.target.value; c.arg=d&&d.arg?d.argDefault:"";
+      renderRules();                    // the argument box appears or disappears
+    });
+    const arg=el.querySelector("[data-k=arg]");
+    if(arg) arg.addEventListener("input",e=>{scRules[ri].comparisons[ci].arg=e.target.value;});
+    el.querySelector("[data-act=cmp-del]").addEventListener("click",()=>{scRules[ri].comparisons.splice(ci,1);renderRules();});
+  });
+}
+$("sc-rule-add").addEventListener("click",()=>{
+  const r=newRule("Rule "+(scRules.length+1));
+  r.comparisons.push(newComparison(scMatchFields()[0]||""));
+  scRules.push(r);renderRules();
+});
+$("sc-rule-suggest").addEventListener("click",scSuggestRules);
+$("sc-rule-clear").addEventListener("click",()=>{scRules=[];renderRules();});
+
+/* Which rule produced which mistake. A pair several rules agree on is counted
+   under each of them, so these columns overlap by design. */
+function scRuleStats(sim,labels){
+  const truePairs=pairsFromClusters(labels);
+  const stats=scRules.map((r,i)=>({name:r.name||("Rule "+(i+1)),linked:0,correct:0,over:0,
+    compared:sim.perRule[i]?sim.perRule[i].compared:0}));
+  sim.pairs.forEach((p,ix)=>{
+    const good=truePairs.has(pairKey(p[0],p[1]));
+    for(const ri of (sim.pairRules[ix]||[])){
+      if(!stats[ri]) continue;
+      stats[ri].linked++;
+      if(good) stats[ri].correct++; else stats[ri].over++;
+    }
+  });
+  return stats;
+}
+
 $("sc-run").addEventListener("click",()=>{
   $("sc-results").hidden=true;$("sc-copy").hidden=true;scLast=null;
   try{
     const truth=scSrc==="entity"?scTruthFromEntity():scTruthFromPaste();
-    const parsed=parsePairsText($("sc-pairs").value,$("sc-header").checked);
-    if(!parsed.pairs.length&&!$("sc-pairs").value.trim()) throw new Error("Paste the pairs your matcher linked (one id_a,id_b per line).");
     const opts={closeTransitively:$("sc-close-t").checked};
     const am=parseFloat($("sc-auto").value), rf=parseFloat($("sc-review").value);
     if(Number.isFinite(am)) opts.autoMerge=am;
     if(Number.isFinite(rf)) opts.reviewFloor=rf;
+
+    let pairs, sim=null, parsed=null, note=truth.note;
+    if(scMode==="simulate"){
+      if(!scRules.length) throw new Error("Add at least one match rule, or press Suggest rules.");
+      sim=runMatcher(truth.records,scRules,{idField:truth.idField});
+      pairs=sim.pairs;
+      opts.candidates=sim.candidates;    // the rules imply their own blocking
+      note+=" · "+scRules.length+" rule"+(scRules.length===1?"":"s")+", "+sim.comparisons.toLocaleString()+" comparisons";
+    }else{
+      parsed=parsePairsText($("sc-pairs").value,$("sc-header").checked);
+      if(!parsed.pairs.length&&!$("sc-pairs").value.trim()) throw new Error("Paste the pairs your matcher linked (one id_a,id_b per line).");
+      pairs=parsed.pairs;
+    }
     const candText=$("sc-cand").value.trim();
     if(candText) opts.candidates=$("sc-cand-kind").value==="blocks"?parseLabelsText(candText):parsePairsText(candText).pairs;
-    else if(truth.blocks) opts.candidates=truth.blocks;
-    const res=scoreAll(truth.labels,parsed.pairs,opts);
+    else if(!opts.candidates&&truth.blocks) opts.candidates=truth.blocks;
+
+    const res=scoreAll(truth.labels,pairs,opts);
+    const ruleStats=sim?scRuleStats(sim,truth.labels):null;
     scLast={truth:truthSummary(truth.labels),...res};
-    scRender(res,truth.note);
+    if(ruleStats) scLast.rules=ruleStats;
+    scRender(res,note,ruleStats);
     $("sc-results").scrollIntoView({block:"start",behavior:"smooth"});
-    scStatus(parsed.pairs.length+" pair"+(parsed.pairs.length===1?"":"s")+" read"+(parsed.header?" (header skipped)":"")+(parsed.scored?", with scores":"")+".","ok");
+    if(sim) scStatus("Matcher linked "+sim.pairs.length+" pair"+(sim.pairs.length===1?"":"s")+" from "+
+      sim.comparisons.toLocaleString()+" comparison"+(sim.comparisons===1?"":"s")+
+      (sim.unblockedRules.length?" — "+sim.unblockedRules.length+" rule compared every pair":"")+".","ok");
+    else scStatus(pairs.length+" pair"+(pairs.length===1?"":"s")+" read"+(parsed.header?" (header skipped)":"")+(parsed.scored?", with scores":"")+".","ok");
   }catch(e){scStatus(e.message,"err");}
 });
 $("sc-copy").addEventListener("click",()=>{
@@ -1477,6 +1648,7 @@ $("sc-key").addEventListener("click",()=>{
 $("btn-score").addEventListener("click",()=>{
   closeTypePicker();closeRecipes();
   scFillEntityControls();
+  renderRules();
   scStatus("","");
   if(typeof scoreDlg.showModal==="function") scoreDlg.showModal(); else scoreDlg.setAttribute("open","");
 });
