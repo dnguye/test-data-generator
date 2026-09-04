@@ -509,6 +509,7 @@ Scores are optional. With scores you also get a threshold sweep and the auto-mer
     <div class="sc-actions">
       <button type="button" id="sc-run" class="primary">Score</button>
       <button type="button" id="sc-copy" class="ghost" hidden>Copy results as JSON</button>
+      <button type="button" id="sc-xlsx" class="ghost" hidden title="Every table in the report, one sheet each">Export to Excel</button>
       <span id="sc-status" class="status"></span>
     </div>
     <div id="sc-results" hidden></div>
@@ -551,6 +552,7 @@ import {
   pairsFromClusters, pairKey
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
+import { xlsxFiles } from "./xlsx.js";
 import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
@@ -1488,7 +1490,7 @@ function scRender(res,note,rules){
   if(res.blocking){
     const b=res.blocking;
     h+=`<div class="sc-title" style="margin-top:6px">Blocking</div><div class="tiles">
-      ${scTile("pair completeness  ·  recall ceiling",pct(b.pair_completeness),grade(b.pair_completeness))}
+      ${scTile("pair completeness  ·  cap on direct recall",pct(b.pair_completeness),grade(b.pair_completeness))}
       ${scTile("reduction ratio  ·  pair space cut",pct(b.reduction_ratio),b.reduction_ratio>=0.9?"good":"warn")}
       ${scTile("candidate pairs",String(b.candidate_pairs))}${scTile("true pairs lost",String(b.true_pairs-b.surviving_blocking),b.true_pairs-b.surviving_blocking?"bad":"good")}</div>`;
     if(b.lost_to_blocking.length)
@@ -1547,6 +1549,7 @@ function scRender(res,note,rules){
   }
   $("sc-results").innerHTML=h;
   if(scDiag) scBindPairLinks();
+  $("sc-xlsx").hidden=false;
   $("sc-results").hidden=false;
   $("sc-copy").hidden=false;
 }
@@ -1712,7 +1715,7 @@ function scRuleStats(sim,labels){
 }
 
 $("sc-run").addEventListener("click",()=>{
-  $("sc-results").hidden=true;$("sc-copy").hidden=true;scLast=null;
+  $("sc-results").hidden=true;$("sc-copy").hidden=true;$("sc-xlsx").hidden=true;scLast=null;
   try{
     const truth=scSrc==="entity"?scTruthFromEntity():scTruthFromPaste();
     const opts={closeTransitively:$("sc-close-t").checked};
@@ -1747,7 +1750,7 @@ $("sc-run").addEventListener("click",()=>{
         linked:new Set(sim.pairs.map(p=>pairKey(p[0],p[1]))),
         misses:attributeMisses(rulesSnap,byId,res.evaluation.missed_matches)};
     }
-    scLast={truth:truthSummary(truth.labels),...res};
+    scLast={truth:truthSummary(truth.labels),...res,note};
     if(ruleStats) scLast.rules=ruleStats;
     scRender(res,note,ruleStats);
     $("sc-results").scrollIntoView({block:"start",behavior:"smooth"});
@@ -1756,6 +1759,78 @@ $("sc-run").addEventListener("click",()=>{
       (sim.unblockedRules.length?" — "+sim.unblockedRules.length+" rule compared every pair":"")+".","ok");
     else scStatus(pairs.length+" pair"+(pairs.length===1?"":"s")+" read"+(parsed.header?" (header skipped)":"")+(parsed.scored?", with scores":"")+".","ok");
   }catch(e){scStatus(e.message,"err");}
+});
+/* ---------- export to Excel ----------
+   One sheet per table in the report, values not formulas: these are the
+   scorer's results, and a spreadsheet that recomputed them would be a second
+   scorer. Percentages go in as fractions with a percent format, so they sort
+   and average correctly rather than as text. */
+const P=x=>({v:x,pct:true});
+function scPairRow(p){
+  const row=[String(p[0]),String(p[1])];
+  if(!scDiag) return row;
+  const ra=scDiag.byId.get(String(p[0])), rb=scDiag.byId.get(String(p[1]));
+  if(!ra||!rb) return row;
+  const ex=explainPair(scDiag.rules,ra,rb);
+  const passed=ex.filter(r=>r.passed).map(r=>r.name);
+  const failed=ex.filter(r=>!r.passed).map(r=>r.name+": "+(r.evaluatedNothing?"nothing to evaluate":
+    r.comparisons.filter(c=>!c.passed).map(c=>c.field+(c.measured!==null&&c.measured!==undefined?" "+c.measured:"")).join(", ")));
+  return [...row, passed.join("; "), failed.join(" | ")];
+}
+function scExportSheets(){
+  const L=scLast, ev=L.evaluation, t=L.truth;
+  const sheets=[];
+  const summary=[["metric","value"],
+    ["what","Pairwise scoring against the match_id ground truth; links closed under transitivity unless stated"],
+    ["source",L.note||""],["exported",new Date().toISOString()],
+    ["records",t.records],["clusters",t.clusters],["singletons",t.singletons],["true pairs",t.true_pairs],
+    ["precision",P(ev.precision)],["recall",P(ev.recall)],["F1",P(ev.f1)],
+    ["true positives",ev.tp],["false merges (over-matches)",ev.fp],["missed matches (under-matches)",ev.fn],
+    ["predicted pairs",ev.predicted_pairs],["closed transitively",!!ev.closed_transitively],
+    ["ids not in the truth",ev.unknown_id_count],["self pairs ignored",ev.self_pairs_ignored]];
+  if(L.blocking){const b=L.blocking; summary.push(["pair completeness (cap on direct recall)",P(b.pair_completeness)],["reduction ratio",P(b.reduction_ratio)],
+    ["candidate pairs",b.candidate_pairs],["true pairs lost to blocking",b.true_pairs-b.surviving_blocking]);}
+  if(L.banded){const b=L.banded; summary.push(["auto-merge threshold",b.auto_merge_threshold],["review floor",b.review_floor],
+    ["auto-merge precision",P(b.auto_merge_precision)],["auto-merge recall",P(b.auto_merge_recall)],["false merges in auto band",b.false_merges],
+    ["review queue size",b.review_queue_size],["true pairs in review",b.true_pairs_in_review],["recall after a perfect review",P(b.recall_after_perfect_review)],["missed below review",b.missed_below_review]);}
+  for(const w of (L.warnings||[])) summary.push(["warning",w]);
+  sheets.push({name:"Summary",rows:summary});
+  if(L.sweep) sheets.push({name:"Threshold sweep",rows:[["threshold","linked","TP","FP","FN","precision","recall","F1"],
+    ...L.sweep.map(r=>[r.threshold,r.linked,r.tp,r.fp,r.fn,P(r.precision),P(r.recall),P(r.f1)])]});
+  if(L.rules&&L.rules.length){
+    const rs=scDiag?scDiag.rules:[];
+    sheets.push({name:"By rule",rows:[["rule","compared","linked","correct","over-matches","confidence","blanks agree","comparisons"],
+      ...L.rules.map((r,i)=>[r.name,r.compared,r.linked,r.correct,r.over,rs[i]?parseFloat(rs[i].confidence):null,rs[i]?!!rs[i].blankAgrees:null,
+        rs[i]?rs[i].comparisons.map(c=>c.field+" "+((comparison(c.kind)||{}).label||c.kind)+(c.arg?" "+c.arg:"")).join(" AND "):""])]});
+  }
+  if(scDiag&&scDiag.misses&&scDiag.misses.inspected){
+    const tot=scDiag.misses.inspected, rows=[["rule","field","comparison","misses rejected","share of misses","one comparison away (rule)"]];
+    for(const r of scDiag.misses.rules) for(const f of r.failedOn) rows.push([r.name,f.field,f.label,f.count,P(tot?f.count/tot:0),r.nearMisses]);
+    sheets.push({name:"Misses by comparison",rows});
+  }
+  const pairHead=scDiag?["record a","record b","matched by","failed rules (field measured)"]:["record a","record b"];
+  sheets.push({name:"False merges",rows:[pairHead,...ev.false_merges.map(scPairRow)]});
+  sheets.push({name:"Missed matches",rows:[pairHead,...ev.missed_matches.map(scPairRow)]});
+  if(L.blocking&&L.blocking.lost_to_blocking&&L.blocking.lost_to_blocking.length)
+    sheets.push({name:"Lost to blocking",rows:[["record a","record b"],...L.blocking.lost_to_blocking.map(p=>[String(p[0]),String(p[1])])]});
+  if(scDiag&&scDiag.rules.length){
+    const rows=[["rule","confidence","blanks agree","#","field","comparison","threshold or n"]];
+    scDiag.rules.forEach(r=>r.comparisons.forEach((c,i)=>rows.push([r.name,parseFloat(r.confidence),!!r.blankAgrees,i+1,c.field,(comparison(c.kind)||{}).label||c.kind,c.arg===""?null:(isNaN(parseFloat(c.arg))?c.arg:parseFloat(c.arg))])));
+    sheets.push({name:"Rules",rows});
+  }
+  return sheets;
+}
+$("sc-xlsx").addEventListener("click",async ()=>{
+  if(!scLast) return;
+  const btn=$("sc-xlsx"); btn.disabled=true;
+  try{
+    const sheets=scExportSheets();
+    const seed=$("seed").value.trim();
+    saveBlob(await xlsxFiles(sheets),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "match-scores"+(seed?"-seed-"+slug(seed):"")+".xlsx");
+    scStatus("Exported "+sheets.length+" sheets to Excel.","ok");
+  }catch(e){scStatus("Export failed: "+e.message,"err");}
+  finally{btn.disabled=false;}
 });
 $("sc-copy").addEventListener("click",()=>{
   if(!scLast) return;

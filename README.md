@@ -18,6 +18,7 @@ ground truth (`POST /v1/score`). It is not needed to use the tool.
 | `scoring.js` | ground-truth scoring: pairwise precision / recall against `match_id`, blocking completeness, threshold sweep, review bands |
 | `zip.js` | the archive writer behind *Download all* — one `.zip` per run, no dependencies |
 | `matcher.js` | the configurable matcher behind *Simulate a matcher*: rules, comparisons, derived blocking |
+| `xlsx.js` | the workbook writer behind *Export to Excel* — built on `zip.js`, no dependencies |
 | `faker.iife.js` | the vendored [@faker-js/faker](https://fakerjs.dev) bundle |
 | `faker-ext.js` | the extra generator modules (see below) |
 | `api/` | the optional HTTP API |
@@ -38,13 +39,15 @@ seed produce the same rows through the API as they do on the page.
 
 `node tests/zip.mjs` runs a 36-check audit of `zip.js`, with every archive read back and CRC-verified by Python's `zipfile` module rather than by the writer that produced it.
 
-`node tests/matcher.mjs` runs a 61-check audit of `matcher.js`: the comparison catalogue, Soundex against its published examples, rule semantics, blank handling, the blocking a rule derives from itself, and a full run against generated data that is then scored.
+`node tests/xlsx.mjs` runs a 30-check audit of `xlsx.js`, every workbook opened by openpyxl — an independent reader — to check sheet names, cell values and types, the percent format, the bold frozen header and the font.
+
+`node tests/matcher.mjs` runs a 73-check audit of `matcher.js`: the comparison catalogue, Soundex against its published examples, rule semantics, blank handling, the blocking a rule derives from itself, and a full run against generated data that is then scored.
 
 `node tests/api.mjs` runs a 71-check audit of the HTTP API: the reproducibility contract, schema validation, multi-entity row counts, sandbox isolation, and transport behaviour.
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `engine.js`, `scoring.js`, `matcher.js`, `zip.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `engine.js`, `scoring.js`, `matcher.js`, `zip.js`, `xlsx.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
@@ -109,7 +112,7 @@ Testing a matching or dedup engine? The **dups** control emits fuzzed duplicate 
 
 **Score matcher** closes the loop. Generate with dups on and a seed set, download, hold back the `match_id` column, run your matcher, and paste the pairs it linked into the dialog. It rebuilds the answer key from the same seed and reports **pairwise precision, recall and F1** — never accuracy, which a matcher that links nothing would ace — with the links closed under transitivity so an implied A–C is credited. Paste scored pairs and you also get a **threshold sweep** and the three numbers an MDM team actually decides on: auto-merge precision, auto-merge recall, and how much landed in the review queue. Pick a blocking key field (or paste your candidate pairs) and it reports **pair completeness**, the recall ceiling blocking imposes, alongside the reduction ratio. Every false merge and missed match is listed by record id so a recall gap can be traced to a name, a date or a block. The same scorer is exposed as `POST /v1/score` in the API and lives in `scoring.js` for use from Node.
 
-You do not need a matching engine to use any of that. **Simulate a matcher** inside the same dialog builds one from rules: a rule is a set of field comparisons that must all pass, a pair is linked if any rule passes, and each rule carries a confidence that becomes the pair's score. Comparisons cover exact, case- and punctuation-insensitive, first-N-characters, Soundex, same-words-any-order, Jaro-Winkler, Levenshtein, Jaro-Winkler on sorted words, numeric tolerance and date tolerance. Press *Suggest rules* and the field names propose a starting set. Blocking is derived rather than configured: any equality comparison in a rule becomes its key, so a rule with one costs a fraction of the pair space and a rule without one says so before you run it. The report then adds the diagnostics only a matcher run on the page can give: a per-rule breakdown with bars (compared, linked, correct, over-matches), a per-comparison tally of what rejected each missed pair so you know which threshold to move, and a pair inspector that lays out every rule and comparison with the values measured and a pass or fail mark on each.
+You do not need a matching engine to use any of that. **Simulate a matcher** inside the same dialog builds one from rules: a rule is a set of field comparisons that must all pass, a pair is linked if any rule passes, and each rule carries a confidence that becomes the pair's score. Comparisons cover exact, case- and punctuation-insensitive, first-N-characters, Soundex, same-words-any-order, Jaro-Winkler, Levenshtein, Jaro-Winkler on sorted words, numeric tolerance and date tolerance. Press *Suggest rules* and the field names propose a starting set. Blocking is derived rather than configured: any equality comparison in a rule becomes its key, so a rule with one costs a fraction of the pair space and a rule without one says so before you run it. The report then adds the diagnostics only a matcher run on the page can give: a per-rule breakdown with bars (compared, linked, correct, over-matches), a per-comparison tally of what rejected each missed pair so you know which threshold to move, and a pair inspector that lays out every rule and comparison with the values measured and a pass or fail mark on each. **Export to Excel** writes the whole report as a workbook, one sheet per table (summary, sweep, by rule, misses by comparison, false merges, missed matches, lost to blocking, the rule configuration), with each mistaken pair annotated by the rules that matched it and the comparison that failed.
 
 A **Recipes** button inserts common dependent-field groups in one click — derived and corporate emails, consistent US and international geography with format-valid postal codes, phones/faxes tied to the record's city, ordered dates, age from birth date, CRM-style IDs, and a cross-entity link that keeps a parent's id and name paired. Recipes bind to fields you already have and insert plain, editable fields.
 

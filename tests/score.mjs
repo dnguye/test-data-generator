@@ -122,7 +122,7 @@ check('truth summary: 7 records, 4 clusters, 2 singletons, 4 pairs', summary.rec
 console.log('=== 7. scoreAll bundles the lot ===');
 let all = S.scoreAll(TRUTH, SCORED, { candidates: blocks, thresholds: [0.5, 0.9] });
 check('evaluation, sweep, banded and blocking all present when scored', all.scored && all.evaluation && all.sweep.length === 2 && all.banded && all.blocking);
-check('blocking ceiling produces a warning', all.warnings.some(w => /recall cannot exceed 0.5/.test(w)), all.warnings);
+check('blocking loss produces a warning that names the direct-recall cap and the closure caveat', all.warnings.some(w => /never compared/.test(w) && /0\.5/.test(w) && /transitive closure/.test(w)), all.warnings);
 all = S.scoreAll(TRUTH, PRED);
 check('unscored links: sweep and banded are null, no blocking without candidates', !all.scored && all.sweep === null && all.banded === null && all.blocking === null);
 all = S.scoreAll(TRUTH, [['PAT-0000001', 'PAT-0000002', 0.9], ['PAT-0000002', 'PAT-0000003']]);

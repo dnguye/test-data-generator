@@ -138,7 +138,7 @@ The response:
   "banded":  { "auto_merge_precision": 0.5, "auto_merge_recall": 0.25, "false_merges": 1,
                "review_queue_size": 1, "true_pairs_in_review": 1, "recall_after_perfect_review": 0.5, "missed_below_review": 2 },
   "blocking": { "pair_completeness": 0.5, "reduction_ratio": 0.8571, "candidate_pairs": 3, "surviving_blocking": 2, "lost_to_blocking": [ … ] },
-  "warnings": [ "Blocking loses 2 true pairs: recall cannot exceed 0.5 however the threshold is tuned." ]
+  "warnings": [ "Blocking loses 2 true pairs: they are never compared, so no threshold can find them directly. Pair completeness 0.5 caps recall from direct matches; only transitive closure through other linked records can lift it higher." ]
 }
 ```
 
@@ -154,10 +154,14 @@ Three things the numbers are built to get right:
   sizes, so a matcher that links all 10,000 records into one blob is scored
   without materialising 50 million pairs; only the *listed* mistakes are
   enumerated, and those are capped.
-- **Blocking is scored separately.** A true pair split across two blocks can
-  never be found at any threshold. `pair_completeness` is that recall ceiling;
-  `reduction_ratio` is how much of the pair space blocking cut. Pass the block
-  keys as a map and it is computed from block sizes alone.
+- **Blocking is scored separately.** A true pair split across two blocks is
+  never compared, so no threshold can find it directly. `pair_completeness` is
+  the ceiling on recall from direct matches; `reduction_ratio` is how much of
+  the pair space blocking cut. Pass the block keys as a map and it is computed
+  from block sizes alone. It is not a ceiling on final recall: with
+  `closeTransitively` on, A–B and B–C imply A–C even when A and C sat in
+  different blocks, so a chain through a shared record can recover a pair
+  blocking never offered.
 
 `sweep` and `banded` appear only when every predicted pair carries a score.
 `unknown_id_count` is worth watching: ids in the matcher output that are not in

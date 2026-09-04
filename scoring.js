@@ -261,10 +261,13 @@ function evaluate(truthLabels, predictedPairs, options = {}) {
 function cmpPair(p, q) { return p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : p[1] < q[1] ? -1 : p[1] > q[1] ? 1 : 0; }
 
 /* ---------- blocking ----------
-   Any true pair whose two records land in different blocks can never be found,
-   whatever the threshold. PAIR COMPLETENESS is the fraction of true pairs that
-   survive blocking: the recall ceiling. REDUCTION RATIO is how much of the
-   full pair space blocking cut. The two trade off against each other.
+   Any true pair whose two records land in different blocks is never compared,
+   so no threshold can find it DIRECTLY. PAIR COMPLETENESS is the fraction of
+   true pairs that survive blocking: the ceiling on recall from direct matches.
+   It is not a ceiling on final recall, because transitive closure can recover a
+   pair blocking never offered when both its records link to a third -- A-B and
+   B-C imply A-C even if A and C sat in different blocks. REDUCTION RATIO is how
+   much of the full pair space blocking cut. The two trade off against each other.
 
      candidates  either the candidate pairs blocking produced (any pair shape),
                  or a labelling {record_id: block_key} -- in which case every
@@ -532,7 +535,8 @@ function scoreAll(truthLabels, predictedPairs, options = {}) {
     out.blocking = pairCompleteness(truth, options.candidates);
     if (out.blocking.pair_completeness < 1)
       out.warnings.push("Blocking loses " + (out.blocking.true_pairs - out.blocking.surviving_blocking) + " true pair" +
-        (out.blocking.true_pairs - out.blocking.surviving_blocking === 1 ? "" : "s") + ": recall cannot exceed " + out.blocking.pair_completeness + " however the threshold is tuned.");
+        (out.blocking.true_pairs - out.blocking.surviving_blocking === 1 ? "" : "s") + ": they are never compared, so no threshold can find them directly. " +
+        "Pair completeness " + out.blocking.pair_completeness + " caps recall from direct matches; only transitive closure through other linked records can lift it higher.");
   } else {
     out.blocking = null;
   }
