@@ -134,7 +134,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--accent)}
   press download. Output is nested <b>XML</b>, <b>JSON</b>, or flat <b>CSV</b>. Everything runs in your browser —
   no server, no account, and no data leaves the page.</p>
   <div class="toc">
-    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a>
+    <a href="#structure">Nesting &amp; repeats</a><a href="#entities">Linked entities</a><a href="#matching">Matching &amp; dedup</a><a href="#scoring">Scoring a matcher</a>
     <a href="#formulas">Formulas (JS)</a><a href="#recipes">Formula recipes</a><a href="#modules">Extra type modules</a><a href="#seeds">Seeds</a><a href="#schemas">Schema files</a><a href="#spec">Format spec</a>
   </div>
 </div>
@@ -213,7 +213,7 @@ orders.order[1-3].qty</code></pre>
   duplicates are not adjacent, and a <b>match_id</b> column is added: an original and its variants share a value,
   a record with no duplicates has its own. That column is the ground truth — pairs that share a
   <code>match_id</code> should match; strip the column before feeding the file to your matcher, then score its
-  output with a group-by.</p>
+  output &mdash; the <a href="#scoring">Score matcher</a> dialog does that for you.</p>
   <h3>What each level does</h3>
   <table>
     <tr><th>Level</th><th>Fields fuzzed</th><th>Kinds of damage</th></tr>
@@ -251,6 +251,61 @@ name      [ exact copy in variants ]</code></pre>
   <p class="dim">The row count is the number of <em>base</em> records; the output file is larger by the variants.
   With a seed set, the entire messy dataset — including which records got duplicates and how they were fuzzed —
   is reproducible.</p>
+</div>
+
+<div class="card" id="scoring">
+  <h2>Scoring a matcher against the ground truth</h2>
+  <p>The <b>match_id</b> column is the answer key. <b>Score matcher</b> in the header compares what your matcher
+  linked with what the key says should have been linked. The workflow:</p>
+  <ol>
+    <li>Turn <b>dups</b> on for the entity, set a <b>seed</b>, and <b>Download</b>.</li>
+    <li>Hold back the <code>match_id</code> column (the dialog can also download it alone as an <i>answer key</i>),
+    and run your matcher on everything else.</li>
+    <li>Open <b>Score matcher</b>. Leave the ground truth on <i>This entity + seed</i> &mdash; the same seed regenerates
+    the same rows, so nothing has to be uploaded &mdash; or paste the downloaded file if the schema has changed since.</li>
+    <li>Paste the pairs the matcher linked, one <code>id_a,id_b</code> per line (or <code>id_a,id_b,score</code>, or
+    JSON), and press <b>Score</b>.</li>
+  </ol>
+  <h3>What the numbers mean</h3>
+  <p>Truth partitions the records into clusters (singletons plus groups of 2&ndash;5). The matcher produces its own
+  partition. Both are turned into <em>sets of record pairs</em> so agreement is countable: a 3-record cluster is 3 pairs.</p>
+  <pre><code>true pairs      every pair of records sharing a match_id
+predicted pairs every pair the matcher linked
+TP  in both       FP  predicted only (a false merge)       FN  true only (a missed match)
+
+precision = TP / (TP + FP)      recall = TP / (TP + FN)      F1 = their harmonic mean</code></pre>
+  <p>Three things the scorer does deliberately:</p>
+  <ul>
+    <li><b>It never reports accuracy.</b> With 100 records there are 4,950 possible pairs and maybe 40 true matches, so a
+    matcher that links nothing scores 99.2% accuracy. Precision and recall only.</li>
+    <li><b>It closes the links under transitivity first.</b> If the matcher emits A&ndash;B and B&ndash;C but not A&ndash;C,
+    connected components are built from its links and pairs are re-enumerated within each component. Otherwise it is
+    penalised for a pair it logically implied. Untick <i>close under transitivity</i> to score the raw links.</li>
+    <li><b>It scores blocking separately.</b> A true pair whose two records land in different blocks can never be found,
+    whatever the threshold. Pick a <i>blocking key field</i> in step 1 (or paste your candidate pairs) and the dialog
+    reports <b>pair completeness</b> &mdash; the fraction of true pairs that survive blocking, which is your recall
+    ceiling &mdash; alongside the <b>reduction ratio</b>, how much of the pair space blocking cut. The two trade off.</li>
+  </ul>
+  <h3>With scores: the three numbers that matter</h3>
+  <p>If each pair carries a score, the dialog also sweeps the threshold from 0.5 to 1.0 and shows precision and recall
+  at each cut. But pick thresholds by <em>operational cost</em>, not F1: in patient matching a false merge (two people's
+  charts combined) is far worse than a false split. So production runs a high-precision auto-merge band and sends the
+  middle band to a stewardship queue, and the report gives you the three numbers that describe that:</p>
+  <pre><code>auto-merge  score &ge; 0.92   merged without a human      &rarr; auto-merge precision, auto-merge recall
+review      0.78 &ndash; 0.92    stewardship queue           &rarr; queue size, how many true pairs it holds
+below       score &lt; 0.78     left alone                   &rarr; recall after a perfect review</code></pre>
+  <p>Both band edges are editable. <i>Recall after a perfect review</i> is what you would reach if every queued pair
+  were adjudicated correctly.</p>
+  <h3>Reading the mistakes</h3>
+  <p>Every false merge and missed match is listed by record id. Look them up in the generated file: a recall gap is
+  usually a name problem (nicknames, married names), a date problem (transposed month and day), or a blocking problem
+  (the block key was built from a field the dups fuzzed) &mdash; and the pairs tell you which.</p>
+  <p>The dialog also warns when ids in the matcher output are not in the truth set. They count as false merges, and
+  they almost always mean a different id column was used on each side.</p>
+  <p class="dim">Nothing in the scorer is patient-specific: it scores a Providers entity, or any other, identically.
+  The same scorer is exposed as <code>POST /v1/score</code> in the <a href="https://github.com/dnguye/Test-data-generator/blob/main/api/README.md">HTTP API</a>,
+  where the truth can be regenerated from the same <code>(schemaId, count, seed)</code> that produced the data, and it
+  lives in <code>scoring.js</code> for use from Node.</p>
 </div>
 
 <div class="card" id="formulas">

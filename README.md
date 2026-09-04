@@ -6,7 +6,8 @@ Everything runs client-side. No server, no build step, no accounts, and no data 
 
 There is also an optional [HTTP API](./api/README.md) for generating the same
 data from a script or an agent — `POST /v1/generate` with a schema id, a row
-count and a seed. It is not needed to use the tool.
+count and a seed — and for scoring a matcher's output against the generated
+ground truth (`POST /v1/score`). It is not needed to use the tool.
 
 ## Files
 
@@ -14,6 +15,7 @@ count and a seed. It is not needed to use the tool.
 |---|---|
 | `index.html` | the whole app — markup, styles and UI |
 | `engine.js` | the generation core: types, seeding, formulas, references, duplicates, serializers |
+| `scoring.js` | ground-truth scoring: pairwise precision / recall against `match_id`, blocking completeness, threshold sweep, review bands |
 | `faker.iife.js` | the vendored [@faker-js/faker](https://fakerjs.dev) bundle |
 | `faker-ext.js` | the extra generator modules (see below) |
 | `api/` | the optional HTTP API |
@@ -30,11 +32,13 @@ seed produce the same rows through the API as they do on the page.
 
 `node tests/audit.mjs` runs a 41-check audit of `engine.js`: schema edge cases, escaping, formula failures, reference guardrails, duplicate/targeted-similarity behavior, reproducibility, and a 10k-row performance guard.
 
+`node tests/score.mjs` runs a 97-check audit of `scoring.js` and `POST /v1/score`: the worked example from the design notes, transitive closure, blocking completeness, threshold sweep and review bands, pasted-file parsing, an oracle and a naive matcher scored against real engine output, and truth regenerated from `(schemaId, count, seed)`.
+
 `node tests/api.mjs` runs a 71-check audit of the HTTP API: the reproducibility contract, schema validation, multi-entity row counts, sandbox isolation, and transport behaviour.
 
 ## Deploy on GitHub Pages
 
-1. Create a repo and push these files (`index.html`, `engine.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
+1. Create a repo and push these files (`index.html`, `engine.js`, `scoring.js`, `docs.html`, `faker.iife.js`, `faker-ext.js`, `README.md`).
 2. In the repo: **Settings → Pages → Source: Deploy from a branch → main / root**.
 3. Open `https://<your-username>.github.io/<repo-name>/`
 
@@ -96,6 +100,8 @@ Each field is a card: name on top, type picker right below (click it and type to
 Need linked record types — Contacts pointing at real Account ids? Add an **entity tab** per record type; tabs generate left-to-right in one run, and a **Reference** field on the child picks from the values a parent entity actually produced (random many-to-one, or `unique` for one-to-one). *Download all* saves one file per entity from a single run, so IDs line up across files, and a seed reproduces the whole linked dataset.
 
 Testing a matching or dedup engine? The **dups** control emits fuzzed duplicate variants of a chosen share of records (three intensity presets, damage picked by field type — typos in names, reformatted phones, shifted dates) with a **match_id** ground-truth column: originals and their variants share a value, so scoring a matcher is a group-by. UUIDs regenerate per variant; references stay intact. A fourth level, **targeted**, sets a per-field similarity threshold instead: pick Jaro-Winkler or Levenshtein and a value like 0.90, and variants are fuzzed until they land at that similarity to the original (achieved averages are reported live).
+
+**Score matcher** closes the loop. Generate with dups on and a seed set, download, hold back the `match_id` column, run your matcher, and paste the pairs it linked into the dialog. It rebuilds the answer key from the same seed and reports **pairwise precision, recall and F1** — never accuracy, which a matcher that links nothing would ace — with the links closed under transitivity so an implied A–C is credited. Paste scored pairs and you also get a **threshold sweep** and the three numbers an MDM team actually decides on: auto-merge precision, auto-merge recall, and how much landed in the review queue. Pick a blocking key field (or paste your candidate pairs) and it reports **pair completeness**, the recall ceiling blocking imposes, alongside the reduction ratio. Every false merge and missed match is listed by record id so a recall gap can be traced to a name, a date or a block. The same scorer is exposed as `POST /v1/score` in the API and lives in `scoring.js` for use from Node.
 
 A **Recipes** button inserts common dependent-field groups in one click — derived and corporate emails, consistent US and international geography with format-valid postal codes, phones/faxes tied to the record's city, ordered dates, age from birth date, CRM-style IDs, and a cross-entity link that keeps a parent's id and name paired. Recipes bind to fields you already have and insert plain, editable fields.
 

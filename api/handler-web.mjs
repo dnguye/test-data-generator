@@ -4,7 +4,7 @@
    Serverless hosts freeze or discard the process between invocations, so the
    forked generation worker is re-created on cold start and the in-memory rate
    limiter resets with it. Put real rate limiting at the edge on those hosts. */
-import { createApi, MAX_BODY_BYTES } from "./handlers.mjs";
+import { createApi, bodyLimitFor } from "./handlers.mjs";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +25,8 @@ export default async function handler(request) {
   let body = null;
   if (request.method === "POST") {
     const raw = await request.text();
-    if (raw.length > MAX_BODY_BYTES) return json(413, { error: { code: "body_too_large", message: `Body must be under ${MAX_BODY_BYTES} bytes` } });
+    const limit = bodyLimitFor(path);
+    if (raw.length > limit) return json(413, { error: { code: "body_too_large", message: `Body must be under ${limit} bytes` } });
     try { body = raw ? JSON.parse(raw) : {}; }
     catch { return json(400, { error: { code: "invalid_json", message: "Body must be valid JSON" } }); }
   }

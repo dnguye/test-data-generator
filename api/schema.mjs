@@ -15,7 +15,12 @@ export const LIMITS = {
   maxEntities: 10,
   maxFieldsPerEntity: 200,
   maxExprLength: 2000,
-  maxRows: 10000            // matches engine.js entRowCount()'s own ceiling
+  maxRows: 10000,           // matches engine.js entRowCount()'s own ceiling
+  /* A scoring request carries a matcher's whole output: 10,000 records with
+     duplicates can legitimately produce a few hundred thousand candidate
+     pairs, which a 256 KB schema cap would refuse. */
+  maxScoreBytes: 8 * 1024 * 1024,
+  maxListed: 5000           // longest sample of false merges / missed matches a caller may ask for
 };
 
 class Invalid extends Error {

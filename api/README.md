@@ -86,6 +86,89 @@ For `csv` and `xml` each entity carries `body` (a string) and `mime` instead of
 `records`. The envelope is the same either way, so one response shape parses for
 all three formats.
 
+### 3. Score a matcher — `POST /v1/score`
+
+The other half of duplicate injection. When an entity has dups on, its rows
+carry a `match_id` that an original shares with each of its fuzzed variants.
+Hold that column back, run your matcher on the rest, and post what it linked:
+
+```json
+{
+  "truth":     { "schemaId": "4K67JYE06R6J2VJFE1MST8ZX4WTK1RZ9", "count": { "Patients": 100 }, "seed": 4242,
+                 "entity": "Patients", "idField": "patient_id" },
+  "predicted": [ ["PAT-0000001", "PAT-0000002", 0.97], ["PAT-0000002", "PAT-0000003", 0.85], ["PAT-0000006", "PAT-0000007", 0.93] ],
+  "candidates": { "PAT-0000001": "smit-j-1984", "PAT-0000002": "smit-j-1984", "PAT-0000003": "smyt-j-1984" }
+}
+```
+
+| field | required | notes |
+|---|---|---|
+| `truth` | yes | the answer key, in one of three shapes — see below |
+| `predicted` | yes | the pairs the matcher linked: `[a, b]`, `[a, b, score]` or `{a, b, score}` (also `left/right`, `id_a/id_b`, `source/target`). Scores are optional but must be on every pair or none. |
+| `candidates` | no | blocking output: either every candidate pair blocking produced, or a map of record id to block key |
+| `closeTransitively` | no | default `true`: A–B plus B–C is credited with A–C |
+| `thresholds` | no | cutoffs for the sweep, default 0.50 … 1.00 by 0.05 |
+| `autoMerge`, `reviewFloor` | no | band edges for the operational report, default 0.92 and 0.78 |
+| `maxListed` | no | how many false merges / missed matches to list, default 200, max 5000 (counts are always exact) |
+
+`truth` is the same `{record_id: match_id}` map however you supply it:
+
+- **Regenerate it** — `{ schemaId, count, seed, entity?, idField, matchField? }`.
+  The same triple that produced the data reproduces the answer key, so a caller
+  who generated through the API never ships the file back. `entity` may be
+  omitted for a single-entity schema; `idField` names the field that identifies
+  one record (a UUID or Row Number, which regenerate per variant).
+- **The file** — `{ records: [...], idField, matchField? }`, the generated
+  records as returned by `/v1/generate` (or parsed from the CSV). Nested JSON
+  paths like `order.@id` resolve.
+- **A map** — `{ "PAT-0000001": "M1", ... }`, if you already split it off.
+
+The response:
+
+```json
+{
+  "truth": { "records": 7, "clusters": 4, "singletons": 2, "cluster_sizes": { "1": 2, "2": 1, "3": 1 }, "true_pairs": 4,
+             "source": { "schemaId": "…", "seed": 4242, "count": { "Patients": 100 }, "entity": "Patients", "idField": "patient_id", "matchField": "match_id", "rows": 128 } },
+  "scored": true,
+  "evaluation": { "true_pairs": 4, "predicted_pairs": 4, "tp": 3, "fp": 1, "fn": 1,
+                  "precision": 0.75, "recall": 0.75, "f1": 0.75,
+                  "false_merges": [["PAT-0000006", "PAT-0000007"]], "missed_matches": [["PAT-0000004", "PAT-0000005"]],
+                  "unknown_id_count": 0, "self_pairs_ignored": 0, "closed_transitively": true },
+  "sweep":   [ { "threshold": 0.5, "linked": 3, "tp": 3, "fp": 1, "fn": 1, "precision": 0.75, "recall": 0.75, "f1": 0.75 }, … ],
+  "banded":  { "auto_merge_precision": 0.5, "auto_merge_recall": 0.25, "false_merges": 1,
+               "review_queue_size": 1, "true_pairs_in_review": 1, "recall_after_perfect_review": 0.5, "missed_below_review": 2 },
+  "blocking": { "pair_completeness": 0.5, "reduction_ratio": 0.8571, "candidate_pairs": 3, "surviving_blocking": 2, "lost_to_blocking": [ … ] },
+  "warnings": [ "Blocking loses 2 true pairs: recall cannot exceed 0.5 however the threshold is tuned." ]
+}
+```
+
+Three things the numbers are built to get right:
+
+- **Pairwise precision and recall, never accuracy.** Truth and prediction are
+  both turned into sets of record pairs (a 3-record cluster is 3 pairs). With
+  100 records there are 4,950 possible pairs and perhaps 40 true matches, so a
+  matcher that links nothing would score 99% accuracy.
+- **Transitive closure first.** A matcher that emits A–B and B–C has implied
+  A–C; the prediction is closed into connected components before scoring so it
+  is not penalised for a pair it logically made. Counts come from component
+  sizes, so a matcher that links all 10,000 records into one blob is scored
+  without materialising 50 million pairs; only the *listed* mistakes are
+  enumerated, and those are capped.
+- **Blocking is scored separately.** A true pair split across two blocks can
+  never be found at any threshold. `pair_completeness` is that recall ceiling;
+  `reduction_ratio` is how much of the pair space blocking cut. Pass the block
+  keys as a map and it is computed from block sizes alone.
+
+`sweep` and `banded` appear only when every predicted pair carries a score.
+`unknown_id_count` is worth watching: ids in the matcher output that are not in
+the truth set count as false merges, and almost always mean a different id
+column was used on each side.
+
+Scoring runs no caller-supplied code, so it happens in the API process
+itself (only truth regeneration goes through the sandboxed worker). It shares
+the generate rate limit. The body cap on this route is 8 MB rather than 256 KB,
+because a matcher's full output is a different order of magnitude from a schema.
+
 ---
 
 ## Reproducibility, precisely
@@ -215,7 +298,7 @@ Every failure is `{ "error": { "code", "message", "field"? } }`.
 
 | status | codes |
 |---|---|
-| 400 | `invalid_schema_id`, `invalid_seed`, `invalid_count`, `invalid_format`, `invalid_schema`, `invalid_json` |
+| 400 | `invalid_schema_id`, `invalid_seed`, `invalid_count`, `invalid_format`, `invalid_schema`, `invalid_json`, `invalid_truth`, `invalid_pairs`, `invalid_candidates`, `invalid_option` |
 | 404 | `unknown_schema`, `not_found` |
 | 405 | `method_not_allowed` |
 | 413 | `body_too_large` |
@@ -228,6 +311,10 @@ Registration validates the whole schema up front and points at the offending
 field: unknown types, unparseable formulas, unknown faker methods, and
 `Reference` fields pointing at an entity that is not generated *before* them —
 which would otherwise silently fill a column with `#REF`.
+
+Scoring does the same for its inputs: a non-unique `idField` names the
+repeated id, a malformed pair names its index, and asking for the truth of an
+entity that has dups off is refused rather than scored against an empty key.
 
 ---
 

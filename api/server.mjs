@@ -1,6 +1,6 @@
 /* node:http host for the API. Run with: npm run api  (PORT defaults to 8787) */
 import http from "node:http";
-import { createApi, MAX_BODY_BYTES } from "./handlers.mjs";
+import { createApi, bodyLimitFor } from "./handlers.mjs";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,17 +25,17 @@ function clientIp(req) {
    receives a 413 instead of a connection reset -- resetting mid-upload is what
    most clients surface as an unhelpful "socket hang up". A body several times
    over the cap is not worth the courtesy and gets dropped. */
-const DRAIN_LIMIT = MAX_BODY_BYTES * 4;
-function readBody(req) {
+function readBody(req, limit) {
+  const drainLimit = limit * 4;
   return new Promise((resolve, reject) => {
     let size = 0, over = false;
     const chunks = [];
     req.on("data", c => {
       size += c.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > limit) {
         over = true;
         chunks.length = 0;
-        if (size > DRAIN_LIMIT) { req.destroy(); reject(Object.assign(new Error("body too large"), { tooLarge: true })); }
+        if (size > drainLimit) { req.destroy(); reject(Object.assign(new Error("body too large"), { tooLarge: true })); }
         return;
       }
       chunks.push(c);
@@ -60,11 +60,12 @@ export function createServer(opts) {
       const path = new URL(req.url, "http://x").pathname.replace(/\/+$/, "") || "/";
       let body = null;
       if (req.method === "POST") {
+        const limit = bodyLimitFor(path);
         let raw;
-        try { raw = await readBody(req); }
+        try { raw = await readBody(req, limit); }
         catch (e) {
           return send(e.tooLarge ? 413 : 400,
-            { error: { code: e.tooLarge ? "body_too_large" : "bad_request", message: e.tooLarge ? `Body must be under ${MAX_BODY_BYTES} bytes` : "Could not read the request body" } });
+            { error: { code: e.tooLarge ? "body_too_large" : "bad_request", message: e.tooLarge ? `Body must be under ${limit} bytes` : "Could not read the request body" } });
         }
         try { body = raw ? JSON.parse(raw) : {}; }
         catch { return send(400, { error: { code: "invalid_json", message: "Body must be valid JSON" } }); }
