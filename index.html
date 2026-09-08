@@ -443,6 +443,7 @@ button:active{transform:translateY(1px)}
       </div>
       <div id="sc-src-entity">
         <div class="sc-row">
+          <span class="sc-pair"><label for="sc-seed">seed</label><input type="number" id="sc-seed" placeholder="required" aria-label="Seed" title="Kept in step with the seed in the toolbar"></span>
           <span class="sc-pair"><label for="sc-idfield">record id field</label><select id="sc-idfield"></select></span>
           <span class="sc-pair"><label for="sc-blockfield">blocking key field</label><select id="sc-blockfield"></select></span>
         </div>
@@ -508,6 +509,7 @@ Scores are optional. With scores you also get a threshold sweep and the auto-mer
 
     <div class="sc-actions">
       <button type="button" id="sc-run" class="primary">Score</button>
+      <button type="button" id="sc-clear-all" class="ghost" title="Reset every input and result in this dialog (the seed stays)">Clear everything</button>
       <button type="button" id="sc-copy" class="ghost" hidden>Copy results as JSON</button>
       <button type="button" id="sc-xlsx" class="ghost" hidden title="Every table in the report, one sheet each">Export to Excel</button>
       <span id="sc-status" class="status"></span>
@@ -1210,7 +1212,7 @@ function setFmt(v){
 $("fmt-seg").querySelectorAll("button").forEach(b=>{
   b.addEventListener("click",()=>{setFmt(b.dataset.fmt);refresh();});
 });
-$("seed").addEventListener("input",schedule);
+$("seed").addEventListener("input",()=>{schedule();const d=$("sc-seed");if(d&&d.value!==$("seed").value)d.value=$("seed").value;});
 $("dupLevel").addEventListener("change",e=>{curEnt().dupLevel=e.target.value;syncDupVis();render();});
 [["rows","rows"],["rootEl","root"],["recEl","record"],["dupPct","dupPct"],["dupMax","dupMax"]].forEach(([id,k])=>{
   $(id).addEventListener("input",e=>{curEnt()[k]=e.target.value;schedule();});
@@ -1370,6 +1372,7 @@ function scAutoIdField(en){
   return fs.find(f=>f.type==="UUID")||fs.find(f=>f.type==="Row Number")||fs.find(f=>f.name.trim().toLowerCase()==="id")||fs.find(f=>/(^|_)id$/i.test(f.name.trim()))||fs[0]||null;
 }
 function scFillEntityControls(){
+  if($("sc-seed").value!==$("seed").value) $("sc-seed").value=$("seed").value;   // only when different, so typing is not disturbed
   const en=curEnt(), fs=scNonRepeating(en), auto=scAutoIdField(en);
   const opt=(f,sel)=>`<option value="${escAttr(f.name)}"${sel?" selected":""}>${escHtml(f.name)} — ${escHtml(typeLabel(f))}</option>`;
   const keep=$("sc-idfield").value;
@@ -1378,7 +1381,7 @@ function scFillEntityControls(){
   $("sc-blockfield").innerHTML='<option value="">none</option>'+fs.map(f=>opt(f,f.name===keepB)).join("");
   const problems=[];
   if((en.dupLevel||"off")==="off") problems.push("dups are off for "+en.name+" — turn them on in the toolbar or there is nothing to find");
-  if(!$("seed").value.trim()) problems.push("no seed set — set one in the toolbar so the answer key regenerates the file you downloaded");
+  if(!$("seed").value.trim()) problems.push("no seed set — enter one above so the answer key regenerates the file you downloaded");
   if(!fs.length) problems.push("the entity has no fields");
   $("sc-truth-info").innerHTML=problems.length
     ?`<span style="color:var(--err)">${escHtml(problems.join(" · "))}</span>`
@@ -1397,7 +1400,7 @@ $("sc-src").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=
 function scEntityRows(){
   const en=curEnt();
   if((en.dupLevel||"off")==="off") throw new Error("Turn dups on for "+en.name+" first — with dups off no two records share a match_id.");
-  if(!$("seed").value.trim()) throw new Error("Set a seed first. Without one the file you downloaded and this answer key are different random runs.");
+  if(!$("seed").value.trim()) throw new Error("Enter a seed first. Without one the file you downloaded and this answer key are different random runs.");
   const {results}=runAll(entities,entRowCount,$("seed").value);
   const rows=results.find(x=>x.en===en).rows;
   const mseg=rows.length?rows[0].parsed.find(p=>!en.fields.includes(p.f)):null;
@@ -1858,6 +1861,27 @@ $("btn-score").addEventListener("click",()=>{
   scStatus("","");
   if(typeof scoreDlg.showModal==="function") scoreDlg.showModal(); else scoreDlg.setAttribute("open","");
 });
+$("sc-seed").addEventListener("input",e=>{
+  $("seed").value=e.target.value;
+  schedule();                                    // the preview follows the seed like it does from the toolbar
+  scFillEntityControls();
+});
+/* Back to a blank dialog: every input, every result. The seed stays, because
+   it belongs to the generator and the file already downloaded with it. */
+function scClearAll(){
+  scRules=[]; scLast=null; scDiag=null; scHeaderTouched=false;
+  $("sc-pairs").value=""; $("sc-truth-text").value=""; $("sc-cand").value="";
+  $("sc-header").checked=false; $("sc-close-t").checked=true;
+  $("sc-auto").value="0.92"; $("sc-review").value="0.78";
+  $("sc-cand-kind").value="pairs"; $("sc-blockfield").value="";
+  scFillPasteCols();
+  scSetMode("paste"); scSetSrc("entity");
+  scFillEntityControls(); renderRules();
+  $("sc-results").hidden=true; $("sc-results").innerHTML="";
+  $("sc-copy").hidden=true; $("sc-xlsx").hidden=true;
+  scStatus("Cleared. The seed is kept.","ok");
+}
+$("sc-clear-all").addEventListener("click",scClearAll);
 $("sc-close").addEventListener("click",()=>scoreDlg.close());
 scoreDlg.addEventListener("click",e=>{ if(e.target===scoreDlg) scoreDlg.close(); });   // backdrop click
 
