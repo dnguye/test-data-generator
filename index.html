@@ -110,6 +110,9 @@ h1 span{color:var(--accent)}
 #xml-names.dim{opacity:.35}
 #xml-names.dim input{pointer-events:none}
 #dupPct,#dupMax{width:54px}
+.keep-row{display:flex;align-items:center;gap:6px;font-size:.74rem;color:var(--muted);margin-top:4px;cursor:pointer;user-select:none}
+.field-row .keep-row input[type=checkbox]{width:auto;flex:none;margin:0}
+.keep-row{white-space:nowrap}
 .sim-row select{flex:1;min-width:0}
 .sim-row input{width:74px;flex:0 0 auto}
 .tb-sep{width:1px;height:22px;background:var(--line)}
@@ -647,10 +650,20 @@ function optsUI(f){
   if(f.type==="Number"||f.type==="Date") return `<div class="opt-row">${inputs.join("")}</div>`;
   return inputs.join("");
 }
+/* "keep in dups": the user's say on which fields a duplicate variant never
+   changes. Shown whenever the entity makes duplicates; a kept field loses
+   its similarity control because there is nothing to fuzz. */
+function keepUI(f){
+  const lvl=curEnt().dupLevel||"off";
+  if(lvl==="off") return "";
+  const kind=fieldKind(f);
+  if(kind==="keep"||kind==="formula") return "";
+  return `<label class="keep-row" title="Duplicate variants copy this field unchanged — the value they all agree on"><input type="checkbox" data-keep${f.keep?" checked":""}> keep in dups</label>`;
+}
 function simUI(f){
   if((curEnt().dupLevel||"off")!=="targeted") return "";
   const kind=fieldKind(f);
-  if(kind==="keep"||kind==="uuid") return "";
+  if(kind==="keep"||kind==="uuid"||f.keep) return "";
   const sim=f.sim||{algo:"",target:"0.90"};
   return `<div class="opt-row sim-row">
     <select data-sim="algo" aria-label="Similarity algorithm">
@@ -772,7 +785,7 @@ function render(){
         </div>
       </div>
       <button class="type-btn${f.type==="Faker (any)"?" is-faker":""}" data-act="type" title="Change type"><span class="t-kind">type</span><span class="t-label">${escHtml(typeLabel(f))}</span>${ICONS.chev}</button>
-      ${optsHtml}${simUI(f)}${hint?`<div class="hint">${hint}</div>`:""}
+      ${optsHtml}${simUI(f)}${keepUI(f)}${hint?`<div class="hint">${hint}</div>`:""}
       <span class="sample" data-sample>&nbsp;</span>`;
     row.querySelector('[data-k=name]').addEventListener("input",e=>{f.name=e.target.value;schedule();});
     row.querySelector('[data-k=name]').addEventListener("change",()=>render());
@@ -780,6 +793,7 @@ function render(){
     row.querySelector('[data-act=dup]').addEventListener("click",()=>{
       const c=newField(f.name+"_copy",f.type,JSON.parse(JSON.stringify(f.opts)));
       if(f.sim) c.sim={...f.sim};
+      if(f.keep) c.keep=true;
       fields.splice(idx+1,0,c);renderT();
     });
     row.querySelector('[data-act=del]').addEventListener("click",()=>{fields.splice(idx,1);renderT();});
@@ -793,6 +807,8 @@ function render(){
     row.querySelectorAll("[data-optchk]").forEach(el=>{
       el.addEventListener("change",e=>{f.opts[e.target.dataset.optchk]=e.target.checked?"1":"";schedule();});
     });
+    const keepEl=row.querySelector("[data-keep]");
+    if(keepEl) keepEl.addEventListener("change",e=>{ if(e.target.checked) f.keep=true; else delete f.keep; render(); });
     row.querySelectorAll("[data-sim]").forEach(el=>{
       el.addEventListener(el.tagName==="SELECT"?"change":"input",e=>{
         f.sim=f.sim||{algo:"",target:"0.90"};
@@ -1323,7 +1339,7 @@ $("btn-example").addEventListener("click",()=>{
 function schemaObj(){
   return {version:2, seed:$("seed").value||undefined, format:fmt, active:activeEnt,
     entities:entities.map(en=>({name:en.name,rows:en.rows,root:en.root,record:en.record,dupLevel:en.dupLevel,dupPct:en.dupPct,dupMax:en.dupMax,
-      fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{}))}))};
+      fields:en.fields.map(f=>Object.assign({name:f.name,type:f.type,opts:f.opts},f.sim&&f.sim.algo?{sim:f.sim}:{},f.keep?{keep:true}:{}))}))};
 }
 $("btn-export").addEventListener("click",()=>{
   const schema=schemaObj();
@@ -1337,6 +1353,7 @@ function mkFields(list){
     const type=TYPE_NAMES.includes(f.type)?f.type:"First Name";
     const nf=newField(f.name||"field",type,f.opts||{});
     if(f.sim&&["jw","lev"].includes(f.sim.algo)) nf.sim={algo:f.sim.algo,target:String(f.sim.target??"0.90")};
+    if(f.keep===true||f.keep==="1"||f.keep==="true") nf.keep=true;
     return nf;
   });
 }
@@ -1795,6 +1812,7 @@ function scInspect(a,b){
 function scDamageFor(en,f){
   const lvl=en.dupLevel||"off", k=fieldKind(f);
   if(k==="formula") return {note:"a formula is never damaged itself; it is recomputed from its sources. Pick one of the fields it reads."};
+  if(f.keep) return {note:"marked keep in dups: every variant carries it unchanged, so a rule on it always agrees."};
   if(k==="uuid") return {note:"regenerated for every variant: no two records share it.",damage:()=>uuid()};
   if(k==="keep") return {note:(f.type==="Row Number"?"renumbered per record":"copied unchanged into every variant")+"; a rule on it "+(f.type==="Row Number"?"never":"always")+" agrees."};
   if(lvl==="off") return {note:"duplicates are off for "+en.name+"."};
@@ -2215,7 +2233,7 @@ function scPromptInfo(){
   const en=curEnt();
   if(scSrc==="paste") return {entity:en.name,fields:scTruthCols.map(name=>({name})),dupLevel:"",idField:$("sc-idfield").value};
   return {entity:en.name,dupLevel:en.dupLevel||"off",dupPct:en.dupPct,dupMax:en.dupMax,idField:$("sc-idfield").value,
-    fields:scNonRepeating(en).map(f=>({name:f.name,type:typeLabel(f),sim:f.sim}))};
+    fields:scNonRepeating(en).map(f=>({name:f.name,type:typeLabel(f),sim:f.sim,keep:!!f.keep}))};
 }
 $("sc-matcher-prompt").addEventListener("click",()=>{
   const txt=matcherPrompt(scPromptInfo());

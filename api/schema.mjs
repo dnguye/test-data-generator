@@ -142,6 +142,7 @@ export function normalizeSchema(input, catalog = []) {
         const out = { name: fname, type, opts };
         if (f.sim && (f.sim.algo === "jw" || f.sim.algo === "lev"))
           out.sim = { algo: f.sim.algo, target: str(f.sim.target, "0.90") };
+        if (f.keep === true || f.keep === "1" || f.keep === "true") out.keep = true;
         fieldNames.add(fname);
         return out;
       });

@@ -756,6 +756,7 @@ export function comparisonHelp() {
 }
 function variantNote(f, dupLevel) {
   const t = String(f.type || "");
+  if (f.keep && !/^(row number|formula)/i.test(t)) return "marked keep in dups: copied unchanged into every variant, so it is a safe exact comparison and blocking key";
   if (/^row number$/i.test(t)) return "unique per row: a record and its duplicate never agree, do not compare";
   if (/^uuid$/i.test(t)) return "regenerated for every duplicate variant, do not compare";
   if (/^formula/i.test(t)) return "recomputed for every duplicate from that record's own values, so it follows whatever damage its source fields took; never damaged on its own";
@@ -807,7 +808,7 @@ export function matcherPrompt(info) {
     "",
     "## Guidance",
     "- Two to four rules, each with two to four comparisons, each with a short descriptive name.",
-    "- Give every rule at least one equality comparison on a field that is copied unchanged or rarely fuzzed, so it has a blocking key.",
+    "- Give every rule at least one equality comparison on a field that is copied unchanged (marked keep in dups) or rarely fuzzed, so it has a blocking key.",
     "- Set a similarity threshold a little below the field's fuzz target (a field fuzzed to about 0.84 wants jw 0.80), and use lev rather than jw for dates, codes and numbers.",
     "- Never compare row numbers, UUIDs, or fields that are unique per row, nor a formula built from one of them.",
     "- Prefer strict rules: the scorer reports over-matches (false merges) and under-matches (missed pairs) separately, and a false merge is the worse error in master data."

@@ -335,6 +335,7 @@ console.log('=== 7e. the prompt for an AI, and MATCHER.md ===');
   check('the prompt explains the link policy', /linkPolicy.*"best" matches each record to its single best candidate/.test(prompt));
   check('the kinds that take an arg state its default', M.COMPARISONS.filter(c => c.arg).every(c => prompt.includes('- ' + c.id + ' — arg: ' + c.argLabel + ' (default "' + c.argDefault + '")')));
   check('the example in the prompt is itself a valid matcher file', (() => { const j = prompt.slice(prompt.indexOf('{'), prompt.indexOf('\n## Semantics')); const r = M.normalizeMatcher(JSON.parse(j), ['last_name', 'birth_date']); return r.ok && r.warnings.length === 0; })());
+  check('a kept field is described as the thing variants agree on', /last_name \(Last Name\) — marked keep in dups/.test(M.matcherPrompt({ entity: 'x', dupLevel: 'heavy', fields: [{ name: 'last_name', type: 'Last Name', keep: true }] })));
   check('preset modes and pasted columns get sensible notes', /preset heavy damage/.test(M.matcherPrompt({ entity: 'x', dupLevel: 'heavy', fields: [{ name: 'a', type: 'City' }] }))
     && /^- col$/m.test(M.matcherPrompt({ entity: 'x', dupLevel: '', fields: [{ name: 'col' }] })) && /duplicates are off/.test(M.matcherPrompt({ entity: 'x', fields: [] })));
   const md = fs.readFileSync(new URL('../MATCHER.md', import.meta.url), 'utf8');

@@ -58,6 +58,18 @@ original lands as close as possible to `target` (0.5–1.0). Fields without
 damaged and ignore `sim`: they are recomputed on every record, variants
 included, from that record's own values.
 
+Optional at any `dupLevel`:
+
+```json
+"keep": true            // duplicate variants copy this field unchanged
+```
+
+A kept field is what the variants agree on: no preset damage, no targeted
+fuzz, and a kept UUID is not regenerated. With `first_name` and `last_name`
+at 20% dups and `last_name` kept, only `first_name` differs between a record
+and its duplicates. The app shows it as a *keep in dups* switch on the field
+card whenever the entity makes duplicates.
+
 ### Field path notation (`name`)
 
 Structure is encoded in the field name using dotted paths:
