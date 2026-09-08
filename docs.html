@@ -369,6 +369,12 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   </ul>
   <p>Colour is never the only signal in any of it: bars carry their counts beside them and the over-match segment is
   hatched, so the report reads the same under colour-blindness or in print.</p>
+  <h3>Saving a scorer</h3>
+  <p><b>Export scorer</b>, in the dialog's header, writes everything the dialog needs to score again as one JSON file:
+  the rules, the record id and blocking fields, the transitivity switch, the band edges, and the entity it was built
+  for. <b>Import scorer</b> reads one back. If the schema has an entity of that name the dialog switches to it; rules
+  naming fields the entity lacks are kept and warned about rather than dropped. Keep one scorer file beside each schema
+  file and the whole experiment travels together.</p>
   <h3>Export to Excel</h3>
   <p><b>Export to Excel</b> writes the report as a workbook, one sheet per table: <i>Summary</i> (every headline number,
   the source and any warnings), <i>Threshold sweep</i>, <i>By rule</i>, <i>Misses by comparison</i>, <i>False merges</i>,

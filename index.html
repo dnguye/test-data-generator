@@ -222,6 +222,8 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .dlg-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);
   position:sticky;top:0;background:var(--panel);z-index:1}
 .dlg-h h2{font-family:var(--display);font-size:.9rem;font-weight:700;letter-spacing:-.01em}
+.dlg-tools{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.dlg-tools .ghost{padding:6px 11px;font-size:.78rem}
 .dlg-body{padding:14px 16px 18px;display:flex;flex-direction:column;gap:14px}
 .sc-sec{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:9px;background:var(--soft-bg)}
 .sc-title{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
@@ -429,7 +431,12 @@ button:active{transform:translateY(1px)}
 <dialog id="score-dlg" class="dlg" aria-labelledby="score-title">
   <div class="dlg-h">
     <h2 id="score-title">Score a matcher against ground truth</h2>
-    <button type="button" class="icon" id="sc-close" aria-label="Close">&#10005;</button>
+    <span class="dlg-tools">
+      <button type="button" class="ghost" id="sc-import" title="Load a scorer file: rules, id and blocking fields, bands">Import scorer</button>
+      <button type="button" class="ghost" id="sc-export" title="Save this scorer as a file to import later or share">Export scorer</button>
+      <input type="file" id="sc-scorer-file" accept=".json,application/json" hidden>
+      <button type="button" class="icon" id="sc-close" aria-label="Close">&#10005;</button>
+    </span>
   </div>
   <div class="dlg-body">
     <p class="hint">Generate with <b>dups</b> on and a <b>seed</b> set, download, hold back the <code>match_id</code> column, and run your
@@ -555,7 +562,7 @@ import {
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
 import { xlsxFiles } from "./xlsx.js";
-import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses } from "./matcher.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1882,6 +1889,53 @@ function scClearAll(){
   scStatus("Cleared. The seed is kept.","ok");
 }
 $("sc-clear-all").addEventListener("click",scClearAll);
+
+/* ---------- the scorer as a file ----------
+   Same shape of workflow as the schema: build it here, export, import into
+   another session or hand to a colleague. The file names the entity it was
+   built for; importing switches to that entity when the schema has it. */
+function scScorerState(){
+  return scorerDocument({entity:curEnt().name,idField:$("sc-idfield").value,blockField:$("sc-blockfield").value,mode:scMode,
+    closeTransitively:$("sc-close-t").checked,autoMerge:parseFloat($("sc-auto").value),reviewFloor:parseFloat($("sc-review").value),rules:scRules});
+}
+$("sc-export").addEventListener("click",()=>{
+  const doc=scScorerState();
+  saveBlob(JSON.stringify(doc,null,2),"application/json","scorer-"+slug(curEnt().name)+".json");
+  scStatus("Scorer exported: "+doc.rules.length+" rule"+(doc.rules.length===1?"":"s")+" for "+curEnt().name+".","ok");
+});
+$("sc-import").addEventListener("click",()=>$("sc-scorer-file").click());
+$("sc-scorer-file").addEventListener("change",e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ scApplyScorer(JSON.parse(rd.result)); }catch(err){ scStatus("Import failed: "+err.message,"err"); } };
+  rd.readAsText(file);
+  e.target.value="";
+});
+function scApplyScorer(doc){
+  let switched=false, missingEntity=false;
+  if(doc&&typeof doc==="object"&&doc.entity&&curEnt().name!==doc.entity){
+    const ix=entities.findIndex(en=>en.name===doc.entity);
+    if(ix>=0){switchEnt(ix);switched=true;} else missingEntity=true;
+  }
+  scFillEntityControls();
+  const r=normalizeScorer(doc,scMatchFields());
+  if(!r.ok) throw new Error(r.error);
+  const sc=r.scorer;
+  scRules=sc.rules;
+  scSetSrc("entity");
+  scSetMode(sc.mode);
+  scRules=sc.rules;                       // scSetMode may have suggested into an empty list; the file wins
+  if(sc.idField) $("sc-idfield").value=sc.idField;
+  $("sc-blockfield").value=sc.blockField||"";
+  $("sc-close-t").checked=sc.closeTransitively;
+  $("sc-auto").value=String(sc.autoMerge); $("sc-review").value=String(sc.reviewFloor);
+  renderRules();
+  const notes=[];
+  if(switched) notes.push("switched to entity "+curEnt().name+".");
+  if(missingEntity) notes.push('it was saved for "'+doc.entity+'", which this schema does not have, so it was applied to '+curEnt().name+".");
+  notes.push(...r.warnings);
+  scStatus("Scorer imported: "+sc.rules.length+" rule"+(sc.rules.length===1?"":"s")+"."+(notes.length?" "+notes.join(" "):""),(missingEntity||r.warnings.length)?"err":"ok");
+}
 $("sc-close").addEventListener("click",()=>scoreDlg.close());
 scoreDlg.addEventListener("click",e=>{ if(e.target===scoreDlg) scoreDlg.close(); });   // backdrop click
 

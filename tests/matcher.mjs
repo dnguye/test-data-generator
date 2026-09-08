@@ -152,6 +152,27 @@ console.log('=== 7b. explaining a pair, attributing the misses ===');
   check('unknown ids are skipped, not fatal', M.attributeMisses(rules, byId, [['1', 'nope']]).inspected === 0);
 }
 
+console.log('=== 7c. a scorer as a file ===');
+{
+  const state = { entity: 'Patients', idField: 'seq', blockField: 'zip', mode: 'simulate', closeTransitively: false, autoMerge: 0.9, reviewFloor: 0.7,
+    rules: [{ name: 'A', confidence: 0.99, blankAgrees: true, comparisons: [{ field: 'last', kind: 'jw', arg: 0.85 }, { field: 'dob', kind: 'exact' }] }] };
+  const doc = M.scorerDocument(state);
+  check('the document is marked as a scorer with a version', doc.kind === 'scorer' && doc.version === M.SCORER_VERSION);
+  check('numbers become the strings the rule builder stores', doc.rules[0].confidence === '0.99' && doc.rules[0].comparisons[0].arg === '0.85', doc.rules[0]);
+  const back = M.normalizeScorer(JSON.parse(JSON.stringify(doc)), ['seq', 'last', 'dob', 'zip']);
+  check('a round trip is clean', back.ok && back.warnings.length === 0 && back.scorer.rules.length === 1 && back.scorer.blockField === 'zip' && back.scorer.closeTransitively === false, back);
+  check('bands survive', back.scorer.autoMerge === 0.9 && back.scorer.reviewFloor === 0.7);
+  const other = M.normalizeScorer(doc, ['id', 'surname']);
+  check('fields the target entity lacks are warned about, not fatal', other.ok && other.warnings.length >= 3 && other.scorer.idField === '' && other.scorer.blockField === '', other.warnings);
+  check('a missing arg falls back to the comparison default', M.normalizeScorer({ rules: [{ comparisons: [{ field: 'x', kind: 'jw' }] }] }).scorer.rules[0].comparisons[0].arg === '0.90');
+  check('a mode is inferred from the rules when absent', M.normalizeScorer({ rules: [{ comparisons: [{ field: 'x', kind: 'exact' }] }] }).scorer.mode === 'simulate' && M.normalizeScorer({ rules: [] }).scorer.mode === 'paste');
+  check('a review floor above auto-merge is reset with a warning', (() => { const r = M.normalizeScorer({ rules: [], autoMerge: 0.5, reviewFloor: 0.9 }); return r.ok && r.scorer.autoMerge === 0.92 && r.warnings.length === 1; })());
+  check('a schema file is refused with a pointer to Import schema', /Import schema/.test(M.normalizeScorer({ version: 2, entities: [] }).error));
+  check('the wrong kind is refused', /not a scorer/.test(M.normalizeScorer({ kind: 'schema', rules: [] }).error));
+  check('an array is refused', !M.normalizeScorer([1, 2]).ok);
+  check('an unknown comparison kind is fatal and named', throws(() => M.normalizeScorer({ rules: [{ name: 'q', comparisons: [{ field: 'x', kind: 'nope' }] }] }), /rule 1 "q".*unknown comparison "nope"/));
+}
+
 console.log('=== 8. against generated data, then scored ===');
 E.useFaker(loadFaker().faker);
 const en = E.newEntity('Patients');
