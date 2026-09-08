@@ -246,10 +246,13 @@ name      [ exact copy in variants ]</code></pre>
     <li><b>Row Number</b> renumbers sequentially over the final (shuffled) output.</li>
     <li><b>Reference, Boolean and Static Value</b> fields are copied unchanged — a duplicate Contact still points at
     the same Account.</li>
-    <li><b>Formula (JS) fields are not re-evaluated on variants.</b> A variant is a corrupted copy of a
-    <em>finished</em> record: all field rules run once when the base record generates, and from there only the dups
-    settings decide the corruption. A derived field (like a name-based email) keeps the value computed from the
-    original spelling — which mirrors real duplicate data, where the old email survives the misspelled re-entry.</li>
+    <li><b>Formula (JS) fields are recomputed on every record, variants included.</b> A variant is a corrupted copy
+    of an original; its formulas are then evaluated over the corrupted values, so a match key such as
+    <code>normalize(concat(field('last_name'), field('zip'))).toUpperCase()</code> comes out of the variant's own
+    damaged surname and postcode, exactly as a hub would compute it. A formula is never damaged directly, and a
+    formula of a Row Number follows the number the record ends up with. (The one thing this does not model is a
+    derived value that survives a re-entry unchanged, such as an old email built from the original spelling; give
+    such a field a real type and let the dups settings damage it, or leave it alone.)</li>
   </ul>
   <p class="dim">The row count is the number of <em>base</em> records; the output file is larger by the variants.
   With a seed set, the entire messy dataset — including which records got duplicates and how they were fuzzed —
@@ -430,7 +433,7 @@ Fields a rule may compare (name, type, what a duplicate variant does to it):
 - email (Email) — fuzzed to Jaro-Winkler about 0.88
 - address.state (State Abbr) — copied unchanged
 - address.zip (Zip Code) — fuzzed to Levenshtein about 0.88
-- full_name (Formula) — copied unchanged; built from fuzzed fields, so it leaks
+- full_name (Formula) — recomputed from the record's own fuzzed fields
 
 Rules: two to four, each with two to four comparisons and a short name.
 Every rule needs one equality comparison (exact, normalized, prefix, soundex,
@@ -591,10 +594,12 @@ per field; the rules of thumb are:
 - **Row Number** fields are unique per row and **UUID** fields regenerate for
   every variant. Never compare them; they are what the scorer uses as the
   record id.
-- **Formula** fields are copied unchanged into every variant, never
-  re-evaluated. A formula that concatenates fuzzed fields therefore leaks the
-  answer: a rule on it alone scores a perfect 1.0 and proves nothing. Use such
-  a field only as a blocking key you would actually have in production.
+- **Formula** fields are recomputed for every record, original or variant,
+  from that record's own values, and are never damaged on their own. A match
+  key built from a fuzzed surname is the key of the fuzzed surname, exactly
+  as a hub would compute it, so a rule on it behaves like a rule on its
+  sources. A formula of a row number or a UUID is as unique as they are: do
+  not compare it.
 - In **targeted** duplicate mode a field with a `sim` setting is fuzzed until
   its similarity to the original is about the target; every other field is
   copied unchanged. Set a similarity threshold a little below the target: a
@@ -673,7 +678,7 @@ Fields a rule may compare (name, type, what a duplicate variant does to it):
 - email (Email) — fuzzed to Jaro-Winkler about 0.88
 - address.state (State Abbr) — copied unchanged
 - address.zip (Zip Code) — fuzzed to Levenshtein about 0.88
-- full_name (Formula) — copied unchanged; built from fuzzed fields, so it leaks
+- full_name (Formula) — recomputed from the record's own fuzzed fields
 
 Rules: two to four, each with two to four comparisons and a short name.
 Every rule needs one equality comparison (exact, normalized, prefix, soundex,

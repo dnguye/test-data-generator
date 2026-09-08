@@ -127,6 +127,36 @@ const row0=r.results[0].rows[0];
 check("user match_id field preserved; ground truth moved to _match_id", row0.parsed.some(p=>p.f.name==="_match_id") && r.results[0].rows.every(x=>typeof x.flat.match_id==="number"&&/^M\d{5}$/.test(x.flat._match_id)));
 check("csv headers include both", toCsv(r.results[0].rows).split("\n")[0].startsWith("_match_id,"));
 
+/* === group 9b: formulas follow the record they are on === */
+{
+  const key=newField("key","Formula (JS)",{expr:"normalize(concat(field('n'),field('z'))).toUpperCase()"});
+  const nm=newField("n","First Name"), zp=newField("z","Zip Code");
+  for(const lvl of ["light","medium","heavy"]){
+    entities=[mkEnt("E",40,[nm,zp,key],{dupLevel:lvl,dupPct:"100",dupMax:"2"})];
+    r=run();
+    const rows=r.results[0].rows, norm=s=>String(s??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    check(lvl+": every record's formula equals the formula over its own fields", rows.length>40 && rows.every(x=>x.flat.key===norm(x.flat.n+x.flat.z).toUpperCase()), rows.find(x=>x.flat.key!==norm(x.flat.n+x.flat.z).toUpperCase())?.flat);
+    check(lvl+": a formula is never damaged on its own", rows.every(x=>x.flat.key===x.flat.key.toUpperCase()&&/^[A-Z0-9]*$/.test(x.flat.key)));
+    /* light damage is case and spacing, which normalize() erases, so only the typo levels move the key */
+    if(lvl!=="light") check(lvl+": some variants' keys differ from their original's, because a source field was damaged", rows.some(x=>x.base&&x.flat.key!==norm(x.base.n+x.base.z).toUpperCase()));
+  }
+  const n2=newField("n","Last Name"); n2.sim={algo:"jw",target:"0.80"};
+  const k2=newField("key","Formula (JS)",{expr:"normalize(field('n')).toUpperCase()"}); k2.sim={algo:"lev",target:"0.6"};
+  entities=[mkEnt("E",40,[n2,k2],{dupLevel:"targeted",dupPct:"100",dupMax:"1"})];
+  r=run();
+  const rows=r.results[0].rows;
+  check("targeted: the formula follows the fuzzed field and its own sim setting is ignored", rows.every(x=>x.flat.key===String(x.flat.n).toLowerCase().replace(/[^a-z0-9]/g,"").toUpperCase()));
+  const seq=newField("seq","Row Number"), pid=newField("pid","Formula (JS)",{expr:"'P'+pad(field('seq'),4)"});
+  entities=[mkEnt("E",30,[seq,newField("n","First Name"),pid],{dupLevel:"medium",dupPct:"100",dupMax:"2"})];
+  r=run();
+  check("a formula of the row number follows the number the record ends up with", r.results[0].rows.every(x=>x.flat.pid==="P"+String(x.flat.seq).padStart(4,"0")));
+  check("...so it is unique across originals and variants", new Set(r.results[0].rows.map(x=>x.flat.pid)).size===r.results[0].rows.length);
+  const rp=newField("item[2-3].code","Zip Code"), rf=newField("item[2-3].key","Formula (JS)",{expr:"normalize(field('item[2-3].code'))"});
+  entities=[mkEnt("E",20,[newField("n","First Name"),rp,rf],{dupLevel:"heavy",dupPct:"100",dupMax:"1"})];
+  r=run();
+  check("a repeating formula keeps its count on variants and follows each element", r.errors.length===0 && r.results[0].rows.every(x=>Array.isArray(x.flat["item[2-3].key"])&&x.flat["item[2-3].key"].length===x.flat["item[2-3].code"].length&&x.flat["item[2-3].key"].every((k,i)=>k===String(x.flat["item[2-3].code"][i]).toLowerCase().replace(/[^a-z0-9]/g,""))), r.errors);
+}
+
 /* === group 10: targeted numeric type preservation === */
 const nf=newField("amount","Number",{min:"100",max:"999",decimals:"2"});
 nf.sim={algo:"lev",target:"0.85"};
