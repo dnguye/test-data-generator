@@ -250,7 +250,7 @@ console.log('=== 7e. the prompt for an AI, and MATCHER.md ===');
   check('the prompt names the entity and its duplicate settings', /Entity: Patients \(targeted, 25% of records get up to 3/.test(prompt));
   check('every field is listed with what a duplicate does to it', /seq \(Row Number\) — unique per row/.test(prompt) && /patient_id \(UUID\) — regenerated/.test(prompt)
     && /last_name \(Last Name\) — fuzzed in duplicates until Jaro-Winkler similarity to the original is about 0\.84/.test(prompt)
-    && /birth_date \(Date\) — fuzzed in duplicates until Levenshtein/.test(prompt) && /address\.state \(State Abbr\) — copied unchanged/.test(prompt) && /full_name \(Formula \(JS\)\) — copied unchanged/.test(prompt), prompt);
+    && /birth_date \(Date\) — fuzzed in duplicates until Levenshtein/.test(prompt) && /address\.state \(State Abbr\) — copied unchanged/.test(prompt) && /full_name \(Formula \(JS\)\) — recomputed for every duplicate/.test(prompt), prompt);
   check('every comparison kind is documented in the prompt', M.COMPARISONS.every(c => prompt.includes('- ' + c.id + ' — ')));
   check('the prompt explains the link policy', /linkPolicy.*"best" matches each record to its single best candidate/.test(prompt));
   check('the kinds that take an arg state its default', M.COMPARISONS.filter(c => c.arg).every(c => prompt.includes('- ' + c.id + ' — arg: ' + c.argLabel + ' (default "' + c.argDefault + '")')));

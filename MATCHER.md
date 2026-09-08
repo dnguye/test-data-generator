@@ -144,10 +144,12 @@ per field; the rules of thumb are:
 - **Row Number** fields are unique per row and **UUID** fields regenerate for
   every variant. Never compare them; they are what the scorer uses as the
   record id.
-- **Formula** fields are copied unchanged into every variant, never
-  re-evaluated. A formula that concatenates fuzzed fields therefore leaks the
-  answer: a rule on it alone scores a perfect 1.0 and proves nothing. Use such
-  a field only as a blocking key you would actually have in production.
+- **Formula** fields are recomputed for every record, original or variant,
+  from that record's own values, and are never damaged on their own. A match
+  key built from a fuzzed surname is the key of the fuzzed surname, exactly
+  as a hub would compute it, so a rule on it behaves like a rule on its
+  sources. A formula of a row number or a UUID is as unique as they are: do
+  not compare it.
 - In **targeted** duplicate mode a field with a `sim` setting is fuzzed until
   its similarity to the original is about the target; every other field is
   copied unchanged. Set a similarity threshold a little below the target: a
@@ -226,7 +228,7 @@ Fields a rule may compare (name, type, what a duplicate variant does to it):
 - email (Email) — fuzzed to Jaro-Winkler about 0.88
 - address.state (State Abbr) — copied unchanged
 - address.zip (Zip Code) — fuzzed to Levenshtein about 0.88
-- full_name (Formula) — copied unchanged; built from fuzzed fields, so it leaks
+- full_name (Formula) — recomputed from the record's own fuzzed fields
 
 Rules: two to four, each with two to four comparisons and a short name.
 Every rule needs one equality comparison (exact, normalized, prefix, soundex,

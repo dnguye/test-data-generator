@@ -254,25 +254,33 @@ function generateRows(flds, n, registry, errors){
       }
     }
     // pass 2: formulas (in field order; can reference earlier formulas)
-    for(const p of parsed){
-      const t=TYPES[p.f.type]; if(!t||!t.formula) continue;
-      const expr=p.f.opts.expr||'""';
-      try{
-        if(p.rp){
-          const c = counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max));
-          const arr=[]; for(let k=0;k<c;k++) arr.push(evalFormula(expr,flat,k));
-          flat[p.f.name]=arr;
-        }else{
-          flat[p.f.name]=evalFormula(expr,flat,undefined);
-        }
-      }catch(e){
-        flat[p.f.name]="#ERR";
-        if(errors.length<3) errors.push(p.f.name+": "+e.message);
-      }
-    }
+    evalFormulaFields(parsed, flat, p=>counts[p.rp.path] ?? (counts[p.rp.path]=randint(p.rp.spec.min,p.rp.spec.max)), errors);
     rows.push({flat,parsed});
   }
   return {rows};
+}
+/* Formulas over a row's current values, in field order so a formula can read
+   an earlier one. Run once per generated row, and again for every record a
+   duplicate pass produces, so a derived value always agrees with the fields
+   it is derived from -- a match key built from a damaged name is the key of
+   the damaged name, not a copy of the original's. */
+function evalFormulaFields(parsed, flat, countOf, errors){
+  for(const p of parsed){
+    const t=TYPES[p.f.type]; if(!t||!t.formula) continue;
+    const expr=p.f.opts.expr||'""';
+    try{
+      if(p.rp){
+        const c=countOf(p);
+        const arr=[]; for(let k=0;k<c;k++) arr.push(evalFormula(expr,flat,k));
+        flat[p.f.name]=arr;
+      }else{
+        flat[p.f.name]=evalFormula(expr,flat,undefined);
+      }
+    }catch(e){
+      flat[p.f.name]="#ERR";
+      if(errors.length<3) errors.push(p.f.name+": "+e.message);
+    }
+  }
 }
 
 /* ---------- Nesting ---------- */
@@ -440,6 +448,7 @@ function corruptToTarget(s0,algo,target){
    A fraction of records get fuzzed copies; original and copies share a
    match_id so a matcher's output can be scored against ground truth. */
 function fieldKind(f){
+  if(TYPES[f.type]&&TYPES[f.type].formula) return "formula";   // derived: recomputed, never damaged
   const m=(f.type==="Faker (any)"?(f.opts.method||""):"").toLowerCase();
   if(f.type==="Email"||m.includes("email")) return "email";
   if(f.type==="Phone"||m.includes("phone")) return "phone";
@@ -509,7 +518,7 @@ function damageRow(en,flat,lvl){
     c[f.name]=Array.isArray(c[f.name])?c[f.name].map(()=>uuid()):uuid();
   if(lvl==="targeted"){
     for(const f of en.fields){
-      if(!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid") continue;
+      if(!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid"||fieldKind(f)==="formula") continue;
       const t=Math.min(Math.max(parseFloat(f.sim.target)||0.9,0.5),1);
       const v=c[f.name];
       const cor=x=>{
@@ -523,7 +532,7 @@ function damageRow(en,flat,lvl){
   }
   const cand=en.fields.filter(f=>{
     const k=fieldKind(f);
-    if(k==="keep"||k==="uuid") return false;
+    if(k==="keep"||k==="uuid"||k==="formula") return false;
     if(lvl!=="heavy"&&k==="number") return false;
     if(lvl==="light"&&(k==="date"||k==="digits")) return false;
     const v=c[f.name]; return v!==undefined&&v!==null&&v!=="";
@@ -539,7 +548,7 @@ function damageRow(en,flat,lvl){
   }
   return c;
 }
-function applyDuplicates(en,rows){
+function applyDuplicates(en,rows,errors){
   const lvl=en.dupLevel;
   const pct=Math.min(Math.max(parseInt(en.dupPct)||20,1),100);
   const maxV=Math.min(Math.max(parseInt(en.dupMax)||2,1),5);
@@ -565,6 +574,13 @@ function applyDuplicates(en,rows){
   for(let k=out.length-1;k>0;k--){const j=Math.floor(rnd()*(k+1));[out[k],out[j]]=[out[j],out[k]];}
   const rn=en.fields.filter(f=>f.type==="Row Number").map(f=>f.name);
   if(rn.length) out.forEach((r,i)=>rn.forEach(nm=>{if(!Array.isArray(r.flat[nm]))r.flat[nm]=i+1;}));
+  /* formulas last, over every record's final values: a variant's derived
+     fields follow its damaged ones, and a formula of the row number follows
+     the number the record ends up with */
+  if(en.fields.some(f=>TYPES[f.type]&&TYPES[f.type].formula)){
+    const fp=rows[0].parsed;
+    for(const r of out) evalFormulaFields(fp, r.flat, p=>Array.isArray(r.flat[p.f.name])?r.flat[p.f.name].length:1, errors||[]);
+  }
   return out;
 }
 
@@ -585,7 +601,7 @@ function runAll(entities, countFor, seedInput){
   const errors=[], registry={}, results=[];
   for(const en of entities){
     let {rows}=generateRows(en.fields, countFor(en), registry, errors);
-    if(en.dupLevel&&en.dupLevel!=="off"&&rows.length&&en.fields.length) rows=applyDuplicates(en,rows);
+    if(en.dupLevel&&en.dupLevel!=="off"&&rows.length&&en.fields.length) rows=applyDuplicates(en,rows,errors);
     const reg={};
     for(const f of en.fields){
       const vals=[];

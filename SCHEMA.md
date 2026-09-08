@@ -54,7 +54,9 @@ Optional, only meaningful when the entity's `dupLevel` is `"targeted"`:
 
 A variant's value for this field is fuzzed until its similarity to the
 original lands as close as possible to `target` (0.5–1.0). Fields without
-`sim` are copied unchanged in targeted mode.
+`sim` are copied unchanged in targeted mode. Formula (JS) fields are never
+damaged and ignore `sim`: they are recomputed on every record, variants
+included, from that record's own values.
 
 ### Field path notation (`name`)
 
