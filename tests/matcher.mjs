@@ -192,6 +192,60 @@ console.log('=== 7f. which record to match to ===');
   })());
 }
 
+console.log('=== 7g. what changed in a variant, and what each rule made of it ===');
+{
+  const C = M.classifyChange;
+  check('no change is null', C('Smith', 'Smith') === null && C('', '') === null && C(null, '') === null);
+  check('case', C('Smith', 'SMITH') === 'case' && C('smith', 'Smith') === 'case');
+  check('spacing', C('Mary Ann', 'Mary  Ann') === 'spacing' && C('Smith', 'Smith ') === 'spacing');
+  check('typo', C('Durgan', 'Duqan') === 'typo' && C('Smith', 'Smiht') === 'typo' && C('Smith', 'Smth') === 'typo');
+  check('fuzzed', C('Johnathan', 'Jonatn') === 'fuzzed');
+  check('digits', C('64093', '64098') === 'digits' && C('1234', '1235') === 'digits');
+  check('date', C('1972-04-09', '1972-04-10') === 'date' && C('1972-04-09', '1972-09-04') === 'date');
+  check('format: same digits, different dressing', C('(303) 735-1748', '303-735-1748') === 'format' && C('3037351748', '(303) 735-1748') === 'format');
+  check('format: email dots and case', C('mary.ann@x.com', 'maryann@x.com') === 'format' && C('Mary.Ann@X.com', 'mary.ann@x.com') === 'case');
+  check('blanked and filled', C('Smith', '') === 'blanked' && C('', 'Smith') === 'filled' && C('Smith', '  ') === 'blanked');
+  check('regenerated uuid', C('86aa983c-c52b-445a-a9ed-070d70f95779', 'd320aec2-ce04-4786-be7c-254019032aee') === 'regenerated');
+  check('a formula is derived whatever the values', C('ABC', 'XYZ', { type: 'Formula (JS)' }) === 'derived');
+  check('anything else is rewritten', C('Smith', 'Rodriguez') === 'other');
+  check('every kind has a label', M.CHANGE_KINDS.every(k => typeof M.changeLabel(k.id) === 'string' && M.changeLabel(k.id).length) && M.changeLabel('zzz') === 'zzz');
+
+  const byId = new Map([
+    ['1', { id: '1', last: 'Durgan', dob: '1972-04-09', zip: '64093' }],
+    ['1a', { id: '1a', last: 'Duqan', dob: '1972-04-09', zip: '64093' }],
+    ['1b', { id: '1b', last: 'DURGAN', dob: '1972-04-10', zip: '64093' }],
+    ['2', { id: '2', last: 'Lee', dob: '1980-01-01', zip: '10001' }],
+    ['2a', { id: '2a', last: 'Lee', dob: '1980-01-01', zip: '' }]
+  ]);
+  const variants = [
+    { id: '1a', originalId: '1', changes: [{ field: 'last', from: 'Durgan', to: 'Duqan', kind: 'typo' }] },
+    { id: '1b', originalId: '1', changes: [{ field: 'last', from: 'Durgan', to: 'DURGAN', kind: 'case' }, { field: 'dob', from: '1972-04-09', to: '1972-04-10', kind: 'date' }] },
+    { id: '2a', originalId: '2', changes: [{ field: 'zip', from: '10001', to: '', kind: 'blanked' }] },
+    { id: 'ghost', originalId: '2', changes: [] }
+  ];
+  const rules = [
+    { name: 'Exact surname and dob', confidence: '1', blankAgrees: false, comparisons: [{ field: 'last', kind: 'exact', arg: '' }, { field: 'dob', kind: 'exact', arg: '' }] },
+    { name: 'Fuzzy surname and zip', confidence: '0.9', blankAgrees: false, comparisons: [{ field: 'last', kind: 'jw', arg: '0.85' }, { field: 'zip', kind: 'exact', arg: '' }] }
+  ];
+  const au = M.auditVariants(rules, byId, variants);
+  check('unknown ids are skipped', au.inspected === 3 && au.variants.length === 3);
+  const v1a = au.variants.find(v => v.id === '1a'), v1b = au.variants.find(v => v.id === '1b'), v2a = au.variants.find(v => v.id === '2a');
+  check('a typo loses the exact rule and is caught by the fuzzy one', !v1a.rules[0].passed && v1a.rules[1].passed && v1a.caughtBy.length === 1 && v1a.caughtBy[0] === 1, v1a);
+  check('the failing comparison is named and attributed to the changed field', v1a.rules[0].failedOn.length === 1 && v1a.rules[0].failedOn[0].field === 'last' && v1a.rules[0].sunkBy.length === 1 && v1a.rules[0].sunkBy[0] === 'last', v1a.rules[0]);
+  check('a case change plus a date shift loses both comparisons of the exact rule, and the case change loses Jaro-Winkler too', !v1b.rules[0].passed && v1b.rules[0].failedOn.length === 2 && v1b.rules[0].sunkBy.length === 2 && !v1b.rules[1].passed && !v1b.caught, v1b);
+  check('a blanked zip loses the fuzzy rule and is lost altogether', !v2a.rules[1].passed && v2a.rules[0].passed === true && v2a.caught === true, v2a);
+  check('per-rule totals', au.byRule[0].caught === 1 && au.byRule[0].lost === 2 && au.byRule[1].caught === 1 && au.byRule[1].lost === 2, au.byRule);
+  check('rollup by kind', au.byRule[0].byKind.typo.lost === 1 && au.byRule[1].byKind.typo.caught === 1 && au.byRule[1].byKind.case.lost === 1 && au.byRule[1].byKind.blanked.lost === 1, au.byRule.map(r => r.byKind));
+  check('rollup by field', au.byRule[0].byField.last.lost === 2 && au.byRule[0].byField.dob.lost === 1 && au.byRule[1].byField.zip.lost === 1, au.byRule.map(r => r.byField));
+  check('kinds and fields present are listed in a stable order', JSON.stringify(au.kinds) === JSON.stringify(['case', 'typo', 'date', 'blanked']) && JSON.stringify(au.fields) === JSON.stringify(['dob', 'last', 'zip']), [au.kinds, au.fields]);
+  check('caught and lost counts over variants', au.caught === 2 && au.lost === 1);
+  check('a variant with two changes of one kind counts once in that column', (() => {
+    const by = new Map([['o', { id: 'o', last: 'Durgan', dob: '1972-04-09', zip: '64093' }], ['v', { id: 'v', last: 'Duqan', dob: '1972-04-09', zip: '64098' }]]);
+    const a = M.auditVariants(rules, by, [{ id: 'v', originalId: 'o', changes: [{ field: 'last', from: 'Durgan', to: 'Duqan', kind: 'typo' }, { field: 'zip', from: '64093', to: '64098', kind: 'typo' }] }]);
+    return a.byRule[0].byKind.typo.lost === 1 && a.byRule[0].byField.last.lost === 1 && a.byRule[0].byField.zip.lost === 1;
+  })());
+}
+
 console.log('=== 7c. a scorer as a file ===');
 {
   const state = { entity: 'Patients', idField: 'seq', blockField: 'zip', mode: 'simulate', closeTransitively: false, autoMerge: 0.9, reviewFloor: 0.7,
