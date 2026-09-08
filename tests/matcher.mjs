@@ -222,6 +222,17 @@ console.log('=== 7e. the prompt for an AI, and MATCHER.md ===');
   })());
 }
 
+{
+  const md = fs.readFileSync(new URL('../MATCHER.md', import.meta.url), 'utf8');
+  const docs = fs.readFileSync(new URL('../docs.html', import.meta.url), 'utf8');
+  const unescape = h => h.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const block = id => { const m = docs.match(new RegExp('<pre id="' + id + '"[^>]*><code>([\\s\\S]*?)</code></pre>')); return m ? unescape(m[1]) : null; };
+  check('docs.html carries MATCHER.md verbatim', block('matcher-spec-block') === md.replace(/\n+$/, ''), (block('matcher-spec-block') || '').slice(0, 80));
+  const promptInMd = (md.match(/```text\n([\s\S]*?)```/) || [])[1];
+  check('docs.html carries the prompt from MATCHER.md', promptInMd && block('matcher-prompt-block') === promptInMd.replace(/\n+$/, ''));
+  check('the docs page links the card from its navigation', /href="#matcher-spec">Matcher spec</.test(docs));
+}
+
 console.log('=== 8. against generated data, then scored ===');
 E.useFaker(loadFaker().faker);
 const en = E.newEntity('Patients');
