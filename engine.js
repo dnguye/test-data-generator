@@ -514,11 +514,11 @@ function damageValue(kind,lvl,v){
 function damageRow(en,flat,lvl){
   const c={}; for(const k in flat){const v=flat[k];c[k]=Array.isArray(v)?v.slice():v;}
   /* a duplicate is a distinct system record: regenerate its system identifiers */
-  for(const f of en.fields) if(fieldKind(f)==="uuid")
+  for(const f of en.fields) if(fieldKind(f)==="uuid"&&!f.keep)
     c[f.name]=Array.isArray(c[f.name])?c[f.name].map(()=>uuid()):uuid();
   if(lvl==="targeted"){
     for(const f of en.fields){
-      if(!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid"||fieldKind(f)==="formula") continue;
+      if(f.keep||!f.sim||!f.sim.algo||fieldKind(f)==="keep"||fieldKind(f)==="uuid"||fieldKind(f)==="formula") continue;
       const t=Math.min(Math.max(parseFloat(f.sim.target)||0.9,0.5),1);
       const v=c[f.name];
       const cor=x=>{
@@ -530,7 +530,10 @@ function damageRow(en,flat,lvl){
     }
     return c;
   }
+  /* a field marked keep is copied unchanged whatever the level: the user's
+     way of saying "this is what the variants agree on" */
   const cand=en.fields.filter(f=>{
+    if(f.keep) return false;
     const k=fieldKind(f);
     if(k==="keep"||k==="uuid"||k==="formula") return false;
     if(lvl!=="heavy"&&k==="number") return false;

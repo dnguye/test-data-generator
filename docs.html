@@ -241,6 +241,11 @@ name      [ exact copy in variants ]</code></pre>
   achieved average per field</b> (e.g. <code>address 0.897</code>) as the preview refreshes. In testing, targets of
   0.75&ndash;0.90 on realistic names and addresses land within &plusmn;0.03 essentially always.</p>
   <h3>What stays intact</h3>
+  <p>Whenever an entity makes duplicates, every field card gains a <b>keep in dups</b> switch. A kept field is
+  copied unchanged into every variant whatever the level: no preset damage, no targeted fuzz, and a kept UUID is not
+  regenerated. With <code>first_name</code> and <code>last_name</code> at 20% dups and <code>last_name</code> kept,
+  only <code>first_name</code> differs between a record and its duplicates. That is the field the variants agree on,
+  so it is also the natural exact comparison and blocking key for a match rule. Beyond that, by type:</p>
   <ul>
     <li><b>UUID fields regenerate</b> on each variant — a duplicate is a distinct system record with its own ID.</li>
     <li><b>Row Number</b> renumbers sequentially over the final (shuffled) output.</li>
@@ -615,6 +620,9 @@ per field; the rules of thumb are:
   as a hub would compute it, so a rule on it behaves like a rule on its
   sources. A formula of a row number or a UUID is as unique as they are: do
   not compare it.
+- A field marked **keep in dups** is copied unchanged into every variant
+  whatever the mode. It is what the duplicates agree on, so it is the
+  natural exact comparison and blocking key for a rule.
 - In **targeted** duplicate mode a field with a `sim` setting is fuzzed until
   its similarity to the original is about the target; every other field is
   copied unchanged. Set a similarity threshold a little below the target: a
@@ -1084,11 +1092,11 @@ can author an importable `schema.json` without seeing the app.
 
 ```json
 {
-  &quot;version&quot;: 2,
-  &quot;seed&quot;: &quot;42&quot;,            // optional; string or number; same seed =&gt; identical data
-  &quot;format&quot;: &quot;xml&quot;,         // optional; &quot;xml&quot; | &quot;json&quot; | &quot;csv&quot;
-  &quot;active&quot;: 0,             // optional; index of the entity tab to open
-  &quot;entities&quot;: [ ... ]      // required; one entry per record type, ORDER MATTERS
+  "version": 2,
+  "seed": "42",            // optional; string or number; same seed =&gt; identical data
+  "format": "xml",         // optional; "xml" | "json" | "csv"
+  "active": 0,             // optional; index of the entity tab to open
+  "entities": [ ... ]      // required; one entry per record type, ORDER MATTERS
 }
 ```
 
@@ -1099,14 +1107,14 @@ entity that appears **earlier** in the array.
 
 ```json
 {
-  &quot;name&quot;: &quot;Contacts&quot;,      // unique display name; Reference fields address it by this
-  &quot;rows&quot;: &quot;100&quot;,           // base record count, 1..10000 (string or number)
-  &quot;root&quot;: &quot;contacts&quot;,      // XML only: root element name
-  &quot;record&quot;: &quot;contact&quot;,     // XML only: per-record element name
-  &quot;dupLevel&quot;: &quot;off&quot;,       // &quot;off&quot; | &quot;light&quot; | &quot;medium&quot; | &quot;heavy&quot; | &quot;targeted&quot;
-  &quot;dupPct&quot;: &quot;20&quot;,          // % of records that get duplicate variants (dups only)
-  &quot;dupMax&quot;: &quot;2&quot;,           // max variants per duplicated record, 1..5 (dups only)
-  &quot;fields&quot;: [ ... ]
+  "name": "Contacts",      // unique display name; Reference fields address it by this
+  "rows": "100",           // base record count, 1..10000 (string or number)
+  "root": "contacts",      // XML only: root element name
+  "record": "contact",     // XML only: per-record element name
+  "dupLevel": "off",       // "off" | "light" | "medium" | "heavy" | "targeted"
+  "dupPct": "20",          // % of records that get duplicate variants (dups only)
+  "dupMax": "2",           // max variants per duplicated record, 1..5 (dups only)
+  "fields": [ ... ]
 }
 ```
 
@@ -1118,18 +1126,32 @@ similarity targets (see `sim` below).
 ## Field
 
 ```json
-{ &quot;name&quot;: &quot;&lt;field path&gt;&quot;, &quot;type&quot;: &quot;&lt;type name&gt;&quot;, &quot;opts&quot;: { ... } }
+{ "name": "&lt;field path&gt;", "type": "&lt;type name&gt;", "opts": { ... } }
 ```
 
-Optional, only meaningful when the entity&#x27;s `dupLevel` is `&quot;targeted&quot;`:
+Optional, only meaningful when the entity's `dupLevel` is `"targeted"`:
 
 ```json
-&quot;sim&quot;: { &quot;algo&quot;: &quot;jw&quot;, &quot;target&quot;: &quot;0.90&quot; }   // &quot;jw&quot; = Jaro-Winkler, &quot;lev&quot; = Levenshtein
+"sim": { "algo": "jw", "target": "0.90" }   // "jw" = Jaro-Winkler, "lev" = Levenshtein
 ```
 
-A variant&#x27;s value for this field is fuzzed until its similarity to the
+A variant's value for this field is fuzzed until its similarity to the
 original lands as close as possible to `target` (0.5–1.0). Fields without
-`sim` are copied unchanged in targeted mode.
+`sim` are copied unchanged in targeted mode. Formula (JS) fields are never
+damaged and ignore `sim`: they are recomputed on every record, variants
+included, from that record's own values.
+
+Optional at any `dupLevel`:
+
+```json
+"keep": true            // duplicate variants copy this field unchanged
+```
+
+A kept field is what the variants agree on: no preset damage, no targeted
+fuzz, and a kept UUID is not regenerated. With `first_name` and `last_name`
+at 20% dups and `last_name` kept, only `first_name` differs between a record
+and its duplicates. The app shows it as a *keep in dups* switch on the field
+card whenever the entity makes duplicates.
 
 ### Field path notation (`name`)
 
@@ -1138,7 +1160,7 @@ Structure is encoded in the field name using dotted paths:
 | Syntax | Meaning | XML result |
 |---|---|---|
 | `address.city` | dots nest elements | `&lt;address&gt;&lt;city&gt;…&lt;/city&gt;&lt;/address&gt;` |
-| `order.@id` | `@` on the LAST segment makes an XML attribute | `&lt;order id=&quot;…&quot;&gt;` |
+| `order.@id` | `@` on the LAST segment makes an XML attribute | `&lt;order id="…"&gt;` |
 | `friend[3]` | repeat exactly 3× | three `&lt;friend&gt;` elements |
 | `item[2-5]` | repeat a random 2–5× per record | 2–5 `&lt;item&gt;` elements |
 
@@ -1161,14 +1183,14 @@ Type names must match EXACTLY (case and spacing). Omitted opts use defaults.
 | `Company` / `Job Title` | — | org fields |
 | `UUID` | — | v4 UUID |
 | `Boolean` | — | true/false |
-| `Number` | `{&quot;min&quot;:&quot;1&quot;,&quot;max&quot;:&quot;100&quot;,&quot;decimals&quot;:&quot;0&quot;}` | random number |
-| `Date` | `{&quot;from&quot;:&quot;2024-01-01&quot;,&quot;to&quot;:&quot;2026-08-27&quot;,&quot;dateFormat&quot;:&quot;YYYY-MM-DD&quot;}` | random date; tokens `YYYY MM DD HH mm ss` |
-| `Custom List` | `{&quot;values&quot;:&quot;red, green, blue&quot;}` | one value from the comma-separated list |
-| `Static Value` | `{&quot;value&quot;:&quot;fixed&quot;}` | the same value every record |
-| `Lorem Words` | `{&quot;count&quot;:&quot;3&quot;}` | placeholder words |
-| `Faker (any)` | `{&quot;method&quot;:&quot;finance.iban&quot;}` | any no-argument @faker-js/faker v9 method by path (e.g. `commerce.isbn`, `vehicle.vin`, `internet.username`) |
-| `Reference` | `{&quot;entity&quot;:&quot;Accounts&quot;,&quot;field&quot;:&quot;id&quot;,&quot;unique&quot;:&quot;&quot;}` | a value already generated for an EARLIER entity; `&quot;unique&quot;:&quot;1&quot;` uses each value at most once (one-to-one) |
-| `Formula (JS)` | `{&quot;expr&quot;:&quot;&lt;JavaScript expression&gt;&quot;}` | computed per record — see below |
+| `Number` | `{"min":"1","max":"100","decimals":"0"}` | random number |
+| `Date` | `{"from":"2024-01-01","to":"2026-08-27","dateFormat":"YYYY-MM-DD"}` | random date; tokens `YYYY MM DD HH mm ss` |
+| `Custom List` | `{"values":"red, green, blue"}` | one value from the comma-separated list |
+| `Static Value` | `{"value":"fixed"}` | the same value every record |
+| `Lorem Words` | `{"count":"3"}` | placeholder words |
+| `Faker (any)` | `{"method":"finance.iban"}` | any no-argument @faker-js/faker v9 method by path (e.g. `commerce.isbn`, `vehicle.vin`, `internet.username`) |
+| `Reference` | `{"entity":"Accounts","field":"id","unique":""}` | a value already generated for an EARLIER entity; `"unique":"1"` uses each value at most once (one-to-one) |
+| `Formula (JS)` | `{"expr":"&lt;JavaScript expression&gt;"}` | computed per record — see below |
 
 ### Formula (JS) expressions
 
@@ -1176,17 +1198,17 @@ Type names must match EXACTLY (case and spacing). Omitted opts use defaults.
 record after all non-formula fields, in field order (a formula may reference
 an earlier formula). Environment:
 
-- `field(&#x27;name&#x27;)` — another field&#x27;s value (current repeat index if repeated)
-- `fields(&#x27;name&#x27;)` — the full array for a repeated field (use the full path
-  as the name, e.g. `fields(&#x27;orders.order[1-3].qty&#x27;)`)
+- `field('name')` — another field's value (current repeat index if repeated)
+- `fields('name')` — the full array for a repeated field (use the full path
+  as the name, e.g. `fields('orders.order[1-3].qty')`)
 - `i` — current repeat index (0-based) when the formula field itself repeats
 - `row` — the whole record so far, keyed by field name
 - Helpers: `normalize(s)` (lowercase, strip non-alphanumerics),
   `concat(...)`, `pad(v, len, ch?)`, `rand(min, max)` (seeded integer)
 - Plus ordinary JavaScript: string methods, `Math`, ternaries, IIFEs.
 
-Examples: `(field(&#x27;first_name&#x27;)+&#x27;.&#x27;+field(&#x27;last_name&#x27;)).toLowerCase()`,
-`&#x27;CUST-&#x27; + pad(field(&#x27;id&#x27;), 6)`, `rand(2000,40000)/100`.
+Examples: `(field('first_name')+'.'+field('last_name')).toLowerCase()`,
+`'CUST-' + pad(field('id'), 6)`, `rand(2000,40000)/100`.
 
 ## Mapping an XSD to this format
 
@@ -1195,7 +1217,7 @@ Examples: `(field(&#x27;first_name&#x27;)+&#x27;.&#x27;+field(&#x27;last_name&#x
 - Leaf `xs:element` → a field; nested complex types become dotted paths.
 - `xs:attribute` → `@name` on the last path segment.
 - `minOccurs`/`maxOccurs` → `[min-max]` on the repeating segment
-  (`maxOccurs=&quot;unbounded&quot;` → pick a sensible cap, e.g. `[1-5]`).
+  (`maxOccurs="unbounded"` → pick a sensible cap, e.g. `[1-5]`).
 - `xs:string` → a semantically matching type (`First Name`, `City`,
   `Faker (any)`, or `Custom List` for enumerations); `xs:int`/`xs:decimal` →
   `Number`; `xs:date`/`xs:dateTime` → `Date`; `xs:boolean` → `Boolean`;
@@ -1208,8 +1230,7 @@ Import the file in the app (Import schema). Malformed files are rejected with
 a message; unknown type names fall back to `First Name` (so type strings must
 be exact); files containing `Formula (JS)` fields load with the preview held
 until the formulas are reviewed. Generated-data files (arrays of records) are
-rejected — this format describes rules, not data.
-</code></pre>
+rejected — this format describes rules, not data.</code></pre>
   <p class="dim">This is the verbatim contents of
   <a href="https://github.com/dnguye/Test-data-generator/blob/main/SCHEMA.md" rel="noopener">SCHEMA.md</a> in the repo.</p>
 </div>

@@ -157,6 +157,28 @@ check("csv headers include both", toCsv(r.results[0].rows).split("\n")[0].starts
   check("a repeating formula keeps its count on variants and follows each element", r.errors.length===0 && r.results[0].rows.every(x=>Array.isArray(x.flat["item[2-3].key"])&&x.flat["item[2-3].key"].length===x.flat["item[2-3].code"].length&&x.flat["item[2-3].key"].every((k,i)=>k===String(x.flat["item[2-3].code"][i]).toLowerCase().replace(/[^a-z0-9]/g,""))), r.errors);
 }
 
+/* === group 9c: keep in dups === */
+{
+  const kept=newField("last","Last Name"); kept.keep=true;
+  for(const lvl of ["light","medium","heavy"]){
+    entities=[mkEnt("E",40,[newField("first","First Name"),kept],{dupLevel:lvl,dupPct:"100",dupMax:"2"})];
+    r=run();
+    const vars=r.results[0].rows.filter(x=>x.base);
+    check(lvl+": a kept field is copied unchanged into every variant", vars.length>0 && vars.every(x=>x.flat.last===x.base.last));
+    check(lvl+": the other field still takes the damage", vars.some(x=>x.flat.first!==x.base.first));
+  }
+  const kf=newField("last","Last Name"); kf.keep=true; kf.sim={algo:"jw",target:"0.7"};
+  const ff=newField("first","First Name"); ff.sim={algo:"jw",target:"0.8"};
+  entities=[mkEnt("E",40,[ff,kf],{dupLevel:"targeted",dupPct:"100",dupMax:"1"})];
+  r=run();
+  const tv=r.results[0].rows.filter(x=>x.base);
+  check("targeted: keep wins over a similarity target", tv.every(x=>x.flat.last===x.base.last) && tv.some(x=>x.flat.first!==x.base.first));
+  const ku=newField("id","UUID"); ku.keep=true;
+  entities=[mkEnt("E",20,[ku,newField("n","First Name")],{dupLevel:"heavy",dupPct:"100",dupMax:"1"})];
+  r=run();
+  check("a kept UUID is not regenerated", r.results[0].rows.filter(x=>x.base).every(x=>x.flat.id===x.base.id));
+}
+
 /* === group 10: targeted numeric type preservation === */
 const nf=newField("amount","Number",{min:"100",max:"999",decimals:"2"});
 nf.sim={algo:"lev",target:"0.85"};

@@ -150,6 +150,9 @@ per field; the rules of thumb are:
   as a hub would compute it, so a rule on it behaves like a rule on its
   sources. A formula of a row number or a UUID is as unique as they are: do
   not compare it.
+- A field marked **keep in dups** is copied unchanged into every variant
+  whatever the mode. It is what the duplicates agree on, so it is the
+  natural exact comparison and blocking key for a rule.
 - In **targeted** duplicate mode a field with a `sim` setting is fuzzed until
   its similarity to the original is about the target; every other field is
   copied unchanged. Set a similarity threshold a little below the target: a

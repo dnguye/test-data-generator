@@ -12,6 +12,7 @@ const check = (name, cond, extra) => {
 };
 
 const store = new MemoryStore();
+process.env.TDG_RATE_REGISTER = process.env.TDG_RATE_REGISTER || '100';   // the suite registers more schemas than a stranger may per minute
 const { server, api } = createServer({ store });
 await api.pool.start();
 await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -151,6 +152,15 @@ const [, dg] = await post('/v1/generate', { schemaId: dup.schemaId, count: 10, s
 check('more rows come back than were requested', dg.entities[0].rows > 10, dg.entities[0]);
 check('the caller is warned about it', dg.warnings.some(w => /duplicate/i.test(w)), dg.warnings);
 check('still reproducible', dg.fingerprint === (await post('/v1/generate', { schemaId: dup.schemaId, count: 10, seed: 5 }))[1].fingerprint);
+const [, kept] = await post('/v1/schemas', { entities: [{ name: 'K', rows: '30', dupLevel: 'heavy', dupPct: '100', dupMax: '1',
+  fields: [{ name: 'first', type: 'First Name' }, { name: 'last', type: 'Last Name', keep: true }, { name: 'mid', type: 'First Name', keep: 'nope' }] }] });
+const [, kback] = await get('/v1/schemas/' + kept.schemaId);
+check('keep survives registration and only as a true boolean', kback.schema.entities[0].fields[1].keep === true && !('keep' in kback.schema.entities[0].fields[2]), kback.schema.entities[0].fields);
+const [, kg] = await post('/v1/generate', { schemaId: kept.schemaId, count: 30, seed: 3 });
+const byMatch = new Map();
+for (const r of kg.entities[0].records) { const g = byMatch.get(r.match_id) || []; g.push(r); byMatch.set(r.match_id, g); }
+const groups = [...byMatch.values()].filter(g => g.length > 1);
+check('a kept field agrees across every duplicate group the API generates', groups.length > 5 && groups.every(g => g.every(r => r.last === g[0].last)), groups.slice(0, 2));
 
 console.log('=== 11. formats ===');
 for (const fmt of ['csv', 'xml']) {
