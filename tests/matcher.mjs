@@ -153,6 +153,45 @@ console.log('=== 7b. explaining a pair, attributing the misses ===');
   check('unknown ids are skipped, not fatal', M.attributeMisses(rules, byId, [['1', 'nope']]).inspected === 0);
 }
 
+console.log('=== 7f. which record to match to ===');
+{
+  /* four records in one block: two Smiths, two Smyths. Exact surname is the
+     strong rule, Soundex the weak one, so every cross pair passes weakly */
+  const R = [{ id: 'A', k: '1', name: 'smith' }, { id: 'B', k: '1', name: 'smith' }, { id: 'C', k: '1', name: 'smyth' }, { id: 'D', k: '1', name: 'smyth' }];
+  const rules = [
+    { name: 'Exact', confidence: '1', blankAgrees: false, comparisons: [{ field: 'k', kind: 'exact', arg: '' }, { field: 'name', kind: 'exact', arg: '' }] },
+    { name: 'Sounds alike', confidence: '0.8', blankAgrees: false, comparisons: [{ field: 'k', kind: 'exact', arg: '' }, { field: 'name', kind: 'soundex', arg: '' }] }
+  ];
+  const all = M.runMatcher(R, rules, { idField: 'id' });
+  check('"all" is the default and links every passing pair', all.linkPolicy === 'all' && all.pairs.length === 6 && all.droppedByPolicy === 0 && all.links.every(l => l.chosen), all.pairs);
+  check('...yet still says which record each would match to', all.matchedTo.A === 'B' && all.matchedTo.B === 'A' && all.matchedTo.C === 'D' && all.matchedTo.D === 'C', all.matchedTo);
+  const best = M.runMatcher(R, rules, { idField: 'id', linkPolicy: 'best' });
+  check('"best" keeps only each record\'s pick', best.pairs.length === 2 && best.droppedByPolicy === 4 && asSet(best).has('A-B') && asSet(best).has('C-D'), best.pairs);
+  check('every passing pair is still reported, with the dropped ones flagged', best.links.length === 6 && best.links.filter(l => !l.chosen).length === 4);
+  check('per-rule counts describe what the rules did, before the policy', best.perRule[1].linked === 6 && best.perRule[0].linked === 2, best.perRule);
+  check('the pair list carries the kept pairs\' rules', best.pairRules.length === 2 && best.pairRules.every(r => r.length === 2));
+  const cands = M.candidatesOf(best, 'A');
+  check('candidatesOf ranks a record\'s candidates best first and flags the pick', cands.length === 3 && cands[0].to === 'B' && cands[0].picked && cands[0].linked && cands[0].rules.length === 2
+    && !cands[1].picked && !cands[1].linked && cands[1].score === 0.8, cands);
+  check('a record nobody matched has no candidates', M.candidatesOf(best, 'Z').length === 0);
+  check('an unknown policy is refused', throws(() => M.runMatcher(R, rules, { idField: 'id', linkPolicy: 'mutual' }), /unknown link policy "mutual"/));
+
+  /* the tie-break: same score, same rules, closer values win, then the lower id */
+  const R2 = [{ id: 'X', k: '1', name: 'johnathan' }, { id: 'Y', k: '1', name: 'johnathon' }, { id: 'Z', k: '1', name: 'johnatan' }];
+  const fuzzy = [{ name: 'Fuzzy', confidence: '0.9', blankAgrees: false, comparisons: [{ field: 'k', kind: 'exact', arg: '' }, { field: 'name', kind: 'jw', arg: '0.8' }] }];
+  const r2 = M.runMatcher(R2, fuzzy, { idField: 'id', linkPolicy: 'best' });
+  const cx = M.candidatesOf(r2, 'X');
+  check('closeness breaks a tie between candidates the same rule accepted', cx[0].strength > cx[1].strength && cx[0].picked, cx);
+  check('the ranking is the exported comparator', JSON.stringify(cx.map(c => c.to)) === JSON.stringify([...cx].map(c => ({ ...c, other: c.to })).sort(M.rankLink).map(c => c.to)));
+  check('a pair survives when it is the pick of either record', r2.pairs.length >= 2 && r2.pairs.length <= 3, r2.pairs);
+  check('the order is reproducible', JSON.stringify(M.runMatcher(R2, fuzzy, { idField: 'id', linkPolicy: 'best' }).pairs) === JSON.stringify(r2.pairs));
+  check('equal candidates fall back to the lower id', (() => {
+    const T = [{ id: 'P', k: '1', n: 'a' }, { id: 'Q', k: '1', n: 'a' }, { id: 'R', k: '1', n: 'a' }];
+    const r = M.runMatcher(T, [{ name: 'e', confidence: '1', blankAgrees: false, comparisons: [{ field: 'n', kind: 'exact', arg: '' }] }], { idField: 'id', linkPolicy: 'best' });
+    return r.matchedTo.P === 'Q' && r.matchedTo.Q === 'P' && r.matchedTo.R === 'P';
+  })());
+}
+
 console.log('=== 7c. a scorer as a file ===');
 {
   const state = { entity: 'Patients', idField: 'seq', blockField: 'zip', mode: 'simulate', closeTransitively: false, autoMerge: 0.9, reviewFloor: 0.7,
@@ -182,6 +221,10 @@ console.log('=== 7d. a matcher as a file ===');
   check('the document is marked as a matcher with a version and carries only the rules', doc.kind === 'matcher' && doc.version === M.MATCHER_VERSION && doc.entity === 'Patients' && doc.rules.length === 2 && !('autoMerge' in doc) && !('idField' in doc), doc);
   const back = M.normalizeMatcher(JSON.parse(JSON.stringify(doc)), ['last', 'dob', 'email']);
   check('a round trip is clean', back.ok && back.kind === 'matcher' && back.warnings.length === 0 && back.matcher.rules.length === 2 && back.matcher.rules[0].confidence === '1' && back.matcher.rules[0].comparisons[0].arg === '0.85', back);
+  check('the link policy travels in a matcher file and defaults to "all"', back.matcher.linkPolicy === 'all' && M.matcherDocument({ entity: 'P', rules, linkPolicy: 'best' }).linkPolicy === 'best'
+    && M.normalizeMatcher({ kind: 'matcher', rules: [], linkPolicy: 'best' }).matcher.linkPolicy === 'best');
+  check('an unknown link policy is a warning, not a refusal', (() => { const r = M.normalizeMatcher({ kind: 'matcher', rules: [], linkPolicy: 'mutual' }); return r.ok && r.matcher.linkPolicy === 'all' && /unknown link policy/.test(r.warnings.join(' ')); })());
+  check('the link policy travels in a scorer file too', M.normalizeScorer(M.scorerDocument({ entity: 'P', rules, linkPolicy: 'best' })).scorer.linkPolicy === 'best');
   check('the rules run as they did before the trip', (() => {
     const a = M.runMatcher(RECS, rules, { idField: 'id' }), b = M.runMatcher(RECS, back.matcher.rules, { idField: 'id' });
     return JSON.stringify(a.pairs) === JSON.stringify(b.pairs);
@@ -209,12 +252,14 @@ console.log('=== 7e. the prompt for an AI, and MATCHER.md ===');
     && /last_name \(Last Name\) — fuzzed in duplicates until Jaro-Winkler similarity to the original is about 0\.84/.test(prompt)
     && /birth_date \(Date\) — fuzzed in duplicates until Levenshtein/.test(prompt) && /address\.state \(State Abbr\) — copied unchanged/.test(prompt) && /full_name \(Formula \(JS\)\) — copied unchanged/.test(prompt), prompt);
   check('every comparison kind is documented in the prompt', M.COMPARISONS.every(c => prompt.includes('- ' + c.id + ' — ')));
+  check('the prompt explains the link policy', /linkPolicy.*"best" matches each record to its single best candidate/.test(prompt));
   check('the kinds that take an arg state its default', M.COMPARISONS.filter(c => c.arg).every(c => prompt.includes('- ' + c.id + ' — arg: ' + c.argLabel + ' (default "' + c.argDefault + '")')));
   check('the example in the prompt is itself a valid matcher file', (() => { const j = prompt.slice(prompt.indexOf('{'), prompt.indexOf('\n## Semantics')); const r = M.normalizeMatcher(JSON.parse(j), ['last_name', 'birth_date']); return r.ok && r.warnings.length === 0; })());
   check('preset modes and pasted columns get sensible notes', /preset heavy damage/.test(M.matcherPrompt({ entity: 'x', dupLevel: 'heavy', fields: [{ name: 'a', type: 'City' }] }))
     && /^- col$/m.test(M.matcherPrompt({ entity: 'x', dupLevel: '', fields: [{ name: 'col' }] })) && /duplicates are off/.test(M.matcherPrompt({ entity: 'x', fields: [] })));
   const md = fs.readFileSync(new URL('../MATCHER.md', import.meta.url), 'utf8');
   check('MATCHER.md documents every comparison kind with its default', M.COMPARISONS.every(c => md.includes('| `' + c.id + '` |') && (!c.arg || md.includes('default `"' + c.argDefault + '"`'))));
+  check('MATCHER.md documents the link policy', /## Which record a record matches to/.test(md) && /"linkPolicy": "best"/.test(md));
   const blocks = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map(m => m[1]).filter(b => /"kind": "matcher"/.test(b) && !/\/\//.test(b));
   check('the complete example in MATCHER.md imports cleanly against the fields it names', blocks.length === 1 && (() => {
     const r = M.normalizeMatcher(JSON.parse(blocks[0]), ['address.state', 'last_name', 'birth_date', 'email', 'first_name', 'address.zip']);
