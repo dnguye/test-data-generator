@@ -498,6 +498,87 @@ export function normalizeMatcher(input, fieldNames = []) {
   return { ok: true, warnings, kind: what.kind, matcher: { kind: "matcher", version: MATCHER_VERSION, entity: String(input.entity || ""), rules } };
 }
 
+/* ---------- a prompt for an AI ----------
+   The matcher file is a contract an assistant can write to. This composes
+   everything it needs in one paste: the entity's fields and what a duplicate
+   variant does to each, the file shape, the rule semantics, and the
+   comparison kinds generated from COMPARISONS so the two cannot drift. The
+   long-form version for people is MATCHER.md. */
+const KIND_HELP = {
+  exact: "the two values are identical as strings",
+  normalized: "equal after lower-casing and dropping everything but letters and digits",
+  prefix: "the first N characters agree after that same normalisation (arg = N, default 3)",
+  soundex: "the Soundex codes agree; for names that sound alike (Smith / Smyth)",
+  tokens: "the same words in any order (\"Mary Ann\" / \"Ann Mary\")",
+  jw: "Jaro-Winkler similarity is at least arg (0..1, default 0.90); best for names and short strings",
+  lev: "Levenshtein similarity is at least arg (0..1, default 0.85); best for codes, dates and numbers written as text",
+  jwTokens: "Jaro-Winkler on the words sorted, at least arg (default 0.90); for addresses and multi-word names",
+  numeric: "the numbers differ by at most arg (default 1)",
+  days: "the dates differ by at most arg days (default 1); unparseable dates fail"
+};
+export function comparisonHelp() {
+  return COMPARISONS.map(c => "- " + c.id + " — " + (c.arg ? "arg: " + c.argLabel + " (default \"" + c.argDefault + "\")" : "no arg, leave \"\"") + " — " + KIND_HELP[c.id] +
+    (c.key ? "" : " — similarity only: gives no blocking key"));
+}
+function variantNote(f, dupLevel) {
+  const t = String(f.type || "");
+  if (/^row number$/i.test(t)) return "unique per row: a record and its duplicate never agree, do not compare";
+  if (/^uuid$/i.test(t)) return "regenerated for every duplicate variant, do not compare";
+  if (/^formula/i.test(t)) return "copied unchanged into duplicates (formulas are not re-evaluated); if it is built from fuzzed fields it leaks the answer, so use it only as a blocking key you would have in production";
+  if (dupLevel === "targeted") {
+    if (f.sim && f.sim.algo) return "fuzzed in duplicates until " + (f.sim.algo === "lev" ? "Levenshtein" : "Jaro-Winkler") + " similarity to the original is about " + f.sim.target;
+    return "copied unchanged into duplicates";
+  }
+  if (dupLevel && dupLevel !== "off") return "gets preset " + dupLevel + " damage in duplicates (typos, case, spacing, format), by field type";
+  return "";
+}
+/**
+ * @param {{entity:string, fields:Array<{name:string,type?:string,sim?:{algo:string,target:string}}>, dupLevel?:string, dupPct?:string|number, dupMax?:string|number, idField?:string}} info
+ * @returns {string} text to paste into an assistant; the reply is a matcher file
+ */
+export function matcherPrompt(info) {
+  const entity = info.entity || "Records";
+  const dupLevel = info.dupLevel || "off";
+  const dups = dupLevel === "off" ? "duplicates are off; turn them on before scoring"
+    : dupLevel + (info.dupPct ? ", " + info.dupPct + "% of records get up to " + (info.dupMax || 2) + " variant(s)" : "");
+  const fieldLines = (info.fields || []).map(f => {
+    const note = variantNote(f, dupLevel);
+    return "- " + f.name + (f.type ? " (" + f.type + ")" : "") + (note ? " — " + note : "");
+  });
+  return [
+    "Write a matcher file for the Score matcher in Test Data Generator (https://dnguye.github.io/test-data-generator/).",
+    "Reply with ONE JSON object and nothing else; I will load it with the Import matcher button. The full specification is MATCHER.md in https://github.com/dnguye/test-data-generator.",
+    "",
+    "## Entity: " + entity + " (" + dups + ")",
+    "Fields a rule may compare (name, type, what a duplicate variant does to it):",
+    ...(fieldLines.length ? fieldLines : ["- (no fields yet)"]),
+    ...(info.idField ? ["Record id field for scoring: " + info.idField + " (never compare it)."] : []),
+    "",
+    "## File shape",
+    JSON.stringify({ kind: "matcher", version: MATCHER_VERSION, entity, rules: [
+      { name: "Fuzzy surname and exact birth date", confidence: "1", blankAgrees: false,
+        comparisons: [{ field: "last_name", kind: "jw", arg: "0.85" }, { field: "birth_date", kind: "exact", arg: "" }] }
+    ] }, null, 2),
+    "",
+    "## Semantics",
+    "- A rule links two records when EVERY comparison in it passes (AND). Two records match when ANY rule passes (OR).",
+    "- confidence is a string from \"0\" to \"1\". A pair's score is the highest confidence among the rules that passed; \"1\" for rules safe to auto-merge on, lower for rules meant for human review.",
+    "- blankAgrees false (the default): a blank value fails its comparison. true: a blank on either side counts as agreeing, but a rule never passes on blanks alone.",
+    "- field is the name exactly as listed above; nested fields use dot paths such as address.zip. Values are compared as strings.",
+    "- Blocking is derived from the rule: a rule with at least one equality comparison (exact, normalized, prefix, soundex, tokens) only compares records that share that key, which keeps it fast. A rule made only of similarity comparisons compares every pair.",
+    "",
+    "## Comparison kinds (kind, then its arg)",
+    ...comparisonHelp(),
+    "",
+    "## Guidance",
+    "- Two to four rules, each with two to four comparisons, each with a short descriptive name.",
+    "- Give every rule at least one equality comparison on a field that is copied unchanged or rarely fuzzed, so it has a blocking key.",
+    "- Set a similarity threshold a little below the field's fuzz target (a field fuzzed to about 0.84 wants jw 0.80), and use lev rather than jw for dates, codes and numbers.",
+    "- Never compare row numbers, UUIDs, or fields that are unique per row. Do not build a rule out of formula fields alone.",
+    "- Prefer strict rules: the scorer reports over-matches (false merges) and under-matches (missed pairs) separately, and a false merge is the worse error in master data."
+  ].join("\n");
+}
+
 /* ---------- starting points ----------
    Rules proposed from the field names a schema actually has. Not clever, and
    not meant to be: a first configuration to edit, so nobody faces an empty

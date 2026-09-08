@@ -4,6 +4,7 @@
    across rules), the blocking a rule derives from its own equality
    comparisons, and then runs the whole thing against real generated data and
    scores it -- because the point of the matcher is to be scored. */
+import fs from 'node:fs';
 import { loadFaker } from '../api/faker-node.mjs';
 import * as E from '../engine.js';
 import * as S from '../scoring.js';
@@ -195,6 +196,30 @@ console.log('=== 7d. a matcher as a file ===');
   check('the wrong kind is refused and names Save matcher', /not a matcher.*Save matcher/.test(M.normalizeMatcher({ kind: 'schema', rules: [] }).error));
   check('no rules array is refused', /rules array/.test(M.normalizeMatcher({ kind: 'matcher' }).error));
   check('an unknown comparison kind is fatal and named', throws(() => M.normalizeMatcher({ kind: 'matcher', rules: [{ comparisons: [{ field: 'x', kind: 'nope' }] }] }), /rule 1: unknown comparison "nope"/));
+}
+
+console.log('=== 7e. the prompt for an AI, and MATCHER.md ===');
+{
+  const info = { entity: 'Patients', dupLevel: 'targeted', dupPct: '25', dupMax: '3', idField: 'seq',
+    fields: [{ name: 'seq', type: 'Row Number' }, { name: 'patient_id', type: 'UUID' }, { name: 'last_name', type: 'Last Name', sim: { algo: 'jw', target: '0.84' } },
+      { name: 'birth_date', type: 'Date', sim: { algo: 'lev', target: '0.90' } }, { name: 'address.state', type: 'State Abbr' }, { name: 'full_name', type: 'Formula (JS)' }] };
+  const prompt = M.matcherPrompt(info);
+  check('the prompt names the entity and its duplicate settings', /Entity: Patients \(targeted, 25% of records get up to 3/.test(prompt));
+  check('every field is listed with what a duplicate does to it', /seq \(Row Number\) — unique per row/.test(prompt) && /patient_id \(UUID\) — regenerated/.test(prompt)
+    && /last_name \(Last Name\) — fuzzed in duplicates until Jaro-Winkler similarity to the original is about 0\.84/.test(prompt)
+    && /birth_date \(Date\) — fuzzed in duplicates until Levenshtein/.test(prompt) && /address\.state \(State Abbr\) — copied unchanged/.test(prompt) && /full_name \(Formula \(JS\)\) — copied unchanged/.test(prompt), prompt);
+  check('every comparison kind is documented in the prompt', M.COMPARISONS.every(c => prompt.includes('- ' + c.id + ' — ')));
+  check('the kinds that take an arg state its default', M.COMPARISONS.filter(c => c.arg).every(c => prompt.includes('- ' + c.id + ' — arg: ' + c.argLabel + ' (default "' + c.argDefault + '")')));
+  check('the example in the prompt is itself a valid matcher file', (() => { const j = prompt.slice(prompt.indexOf('{'), prompt.indexOf('\n## Semantics')); const r = M.normalizeMatcher(JSON.parse(j), ['last_name', 'birth_date']); return r.ok && r.warnings.length === 0; })());
+  check('preset modes and pasted columns get sensible notes', /preset heavy damage/.test(M.matcherPrompt({ entity: 'x', dupLevel: 'heavy', fields: [{ name: 'a', type: 'City' }] }))
+    && /^- col$/m.test(M.matcherPrompt({ entity: 'x', dupLevel: '', fields: [{ name: 'col' }] })) && /duplicates are off/.test(M.matcherPrompt({ entity: 'x', fields: [] })));
+  const md = fs.readFileSync(new URL('../MATCHER.md', import.meta.url), 'utf8');
+  check('MATCHER.md documents every comparison kind with its default', M.COMPARISONS.every(c => md.includes('| `' + c.id + '` |') && (!c.arg || md.includes('default `"' + c.argDefault + '"`'))));
+  const blocks = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map(m => m[1]).filter(b => /"kind": "matcher"/.test(b) && !/\/\//.test(b));
+  check('the complete example in MATCHER.md imports cleanly against the fields it names', blocks.length === 1 && (() => {
+    const r = M.normalizeMatcher(JSON.parse(blocks[0]), ['address.state', 'last_name', 'birth_date', 'email', 'first_name', 'address.zip']);
+    return r.ok && r.warnings.length === 0 && r.matcher.rules.length === 3;
+  })());
 }
 
 console.log('=== 8. against generated data, then scored ===');

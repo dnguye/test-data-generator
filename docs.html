@@ -381,6 +381,11 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   id field or bands along. <b>Import matcher</b> replaces the rules and touches nothing else in the dialog. The two
   file kinds open in each other's importer: a scorer file imported as a matcher gives up its rules, and a matcher
   file imported as a scorer fills the rules and leaves every other setting as it was, each with a note saying so.</p>
+  <p>The file format is small enough for an assistant to write. <b>Copy prompt for an AI</b>, beside Save matcher, puts
+  on the clipboard everything one needs: the entity's fields and what a duplicate variant does to each, the file shape,
+  the rule semantics and every comparison kind with its argument. Paste it into an AI assistant, save the JSON it
+  replies with, and load that with Import matcher. The same material, written out for people, is
+  <a href="https://github.com/dnguye/Test-data-generator/blob/main/MATCHER.md" rel="noopener">MATCHER.md</a> in the repo.</p>
   <h3>Export to Excel</h3>
   <p><b>Export to Excel</b> writes the report as a workbook, one sheet per table: <i>Summary</i> (every headline number,
   the source and any warnings), <i>Threshold sweep</i>, <i>By rule</i>, <i>Misses by comparison</i>, <i>False merges</i>,

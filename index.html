@@ -493,6 +493,7 @@ Scores are optional. With scores you also get a threshold sweep and the auto-mer
           <span class="spacer"></span>
           <button type="button" id="sc-matcher-import" class="ghost" title="Load a matcher file: just the rules, nothing else in the dialog changes">Import matcher</button>
           <button type="button" id="sc-matcher-export" class="ghost" title="Save these rules as a file to import later or share">Save matcher</button>
+          <button type="button" id="sc-matcher-prompt" class="ghost" title="Copy a prompt with this entity's fields and the matcher file format; paste it into an AI assistant and import its reply">Copy prompt for an AI</button>
           <input type="file" id="sc-matcher-file" accept=".json,application/json" hidden>
         </div>
       </div>
@@ -566,7 +567,7 @@ import {
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
 import { xlsxFiles } from "./xlsx.js";
-import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer, matcherDocument, normalizeMatcher } from "./matcher.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer, matcherDocument, normalizeMatcher, matcherPrompt } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1952,6 +1953,22 @@ $("sc-matcher-export").addEventListener("click",()=>{
   const doc=matcherDocument({entity:curEnt().name,rules:scRules});
   saveBlob(JSON.stringify(doc,null,2),"application/json","matcher-"+slug(curEnt().name)+".json");
   scStatus("Matcher saved: "+doc.rules.length+" rule"+(doc.rules.length===1?"":"s")+".","ok");
+});
+/* Everything an assistant needs to write a matcher file for this entity, in
+   one paste: fields and how duplicates damage them, file shape, semantics,
+   comparison kinds. Import matcher takes the reply. */
+function scPromptInfo(){
+  const en=curEnt();
+  if(scSrc==="paste") return {entity:en.name,fields:scTruthCols.map(name=>({name})),dupLevel:"",idField:$("sc-idfield").value};
+  return {entity:en.name,dupLevel:en.dupLevel||"off",dupPct:en.dupPct,dupMax:en.dupMax,idField:$("sc-idfield").value,
+    fields:scNonRepeating(en).map(f=>({name:f.name,type:typeLabel(f),sim:f.sim}))};
+}
+$("sc-matcher-prompt").addEventListener("click",()=>{
+  const txt=matcherPrompt(scPromptInfo());
+  const done=()=>scStatus("Prompt copied. Paste it into an AI assistant, save its JSON reply as a file, and load that with Import matcher.","ok");
+  const failed=()=>scStatus("Copy failed — select the text manually.","err");
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,failed);
+  else{const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done();}catch(e){failed();}ta.remove();}
 });
 $("sc-matcher-import").addEventListener("click",()=>$("sc-matcher-file").click());
 $("sc-matcher-file").addEventListener("change",e=>{
