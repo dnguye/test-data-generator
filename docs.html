@@ -375,6 +375,12 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   for. <b>Import scorer</b> reads one back. If the schema has an entity of that name the dialog switches to it; rules
   naming fields the entity lacks are kept and warned about rather than dropped. Keep one scorer file beside each schema
   file and the whole experiment travels together.</p>
+  <h3>Saving a matcher</h3>
+  <p>The rules on their own are a <b>matcher</b>, and they have their own buttons in the rule builder. <b>Save matcher</b>
+  writes just the rules, so a team can iterate on the matching logic and share it without dragging the entity, seed,
+  id field or bands along. <b>Import matcher</b> replaces the rules and touches nothing else in the dialog. The two
+  file kinds open in each other's importer: a scorer file imported as a matcher gives up its rules, and a matcher
+  file imported as a scorer fills the rules and leaves every other setting as it was, each with a note saying so.</p>
   <h3>Export to Excel</h3>
   <p><b>Export to Excel</b> writes the report as a workbook, one sheet per table: <i>Summary</i> (every headline number,
   the source and any warnings), <i>Threshold sweep</i>, <i>By rule</i>, <i>Misses by comparison</i>, <i>False merges</i>,

@@ -173,6 +173,30 @@ console.log('=== 7c. a scorer as a file ===');
   check('an unknown comparison kind is fatal and named', throws(() => M.normalizeScorer({ rules: [{ name: 'q', comparisons: [{ field: 'x', kind: 'nope' }] }] }), /rule 1 "q".*unknown comparison "nope"/));
 }
 
+console.log('=== 7d. a matcher as a file ===');
+{
+  const rules = [{ name: 'Name and dob', confidence: 1, blankAgrees: false, comparisons: [{ field: 'last', kind: 'jw', arg: 0.85 }, { field: 'dob', kind: 'exact' }] },
+    { name: 'Email', confidence: '0.95', blankAgrees: false, comparisons: [{ field: 'email', kind: 'normalized' }] }];
+  const doc = M.matcherDocument({ entity: 'Patients', rules });
+  check('the document is marked as a matcher with a version and carries only the rules', doc.kind === 'matcher' && doc.version === M.MATCHER_VERSION && doc.entity === 'Patients' && doc.rules.length === 2 && !('autoMerge' in doc) && !('idField' in doc), doc);
+  const back = M.normalizeMatcher(JSON.parse(JSON.stringify(doc)), ['last', 'dob', 'email']);
+  check('a round trip is clean', back.ok && back.kind === 'matcher' && back.warnings.length === 0 && back.matcher.rules.length === 2 && back.matcher.rules[0].confidence === '1' && back.matcher.rules[0].comparisons[0].arg === '0.85', back);
+  check('the rules run as they did before the trip', (() => {
+    const a = M.runMatcher(RECS, rules, { idField: 'id' }), b = M.runMatcher(RECS, back.matcher.rules, { idField: 'id' });
+    return JSON.stringify(a.pairs) === JSON.stringify(b.pairs);
+  })());
+  const other = M.normalizeMatcher(doc, ['surname', 'birth']);
+  check('fields the entity lacks are warned about, not fatal', other.ok && other.warnings.length === 3, other.warnings);
+  const fromScorer = M.normalizeMatcher(M.scorerDocument({ entity: 'P', idField: 'seq', rules }), ['last', 'dob', 'email']);
+  check('a scorer file opens as a matcher: its rules, with a note', fromScorer.ok && fromScorer.kind === 'scorer' && fromScorer.matcher.rules.length === 2 && /scorer file/.test(fromScorer.warnings.join(' ')), fromScorer);
+  const asScorer = M.normalizeScorer(doc, ['last', 'dob', 'email']);
+  check('a matcher file opens as a scorer: its rules, defaults elsewhere, with a note', asScorer.ok && asScorer.kind === 'matcher' && asScorer.scorer.rules.length === 2 && asScorer.scorer.mode === 'simulate' && asScorer.scorer.autoMerge === 0.92 && /matcher file/.test(asScorer.warnings.join(' ')), asScorer);
+  check('a schema file is refused with a pointer to Import schema', /Import schema/.test(M.normalizeMatcher({ version: 2, entities: [] }).error));
+  check('the wrong kind is refused and names Save matcher', /not a matcher.*Save matcher/.test(M.normalizeMatcher({ kind: 'schema', rules: [] }).error));
+  check('no rules array is refused', /rules array/.test(M.normalizeMatcher({ kind: 'matcher' }).error));
+  check('an unknown comparison kind is fatal and named', throws(() => M.normalizeMatcher({ kind: 'matcher', rules: [{ comparisons: [{ field: 'x', kind: 'nope' }] }] }), /rule 1: unknown comparison "nope"/));
+}
+
 console.log('=== 8. against generated data, then scored ===');
 E.useFaker(loadFaker().faker);
 const en = E.newEntity('Patients');

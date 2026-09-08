@@ -490,6 +490,10 @@ Scores are optional. With scores you also get a threshold sweep and the auto-mer
           <button type="button" id="sc-rule-add" class="dashed">+ Add rule</button>
           <button type="button" id="sc-rule-suggest" class="ghost">Suggest rules from these fields</button>
           <button type="button" id="sc-rule-clear" class="ghost">Clear</button>
+          <span class="spacer"></span>
+          <button type="button" id="sc-matcher-import" class="ghost" title="Load a matcher file: just the rules, nothing else in the dialog changes">Import matcher</button>
+          <button type="button" id="sc-matcher-export" class="ghost" title="Save these rules as a file to import later or share">Save matcher</button>
+          <input type="file" id="sc-matcher-file" accept=".json,application/json" hidden>
         </div>
       </div>
       <div class="sc-row">
@@ -562,7 +566,7 @@ import {
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
 import { xlsxFiles } from "./xlsx.js";
-import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer } from "./matcher.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer, matcherDocument, normalizeMatcher } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1912,6 +1916,11 @@ $("sc-scorer-file").addEventListener("change",e=>{
   e.target.value="";
 });
 function scApplyScorer(doc){
+  if(doc&&typeof doc==="object"&&!Array.isArray(doc)&&doc.kind==="matcher"){   // rules only; nothing else in the dialog moves
+    scApplyMatcher(doc);
+    $("sc-status").textContent+=" Imported as a matcher: the id and blocking fields, transitivity and bands kept their current values.";
+    return;
+  }
   let switched=false, missingEntity=false;
   if(doc&&typeof doc==="object"&&doc.entity&&curEnt().name!==doc.entity){
     const ix=entities.findIndex(en=>en.name===doc.entity);
@@ -1935,6 +1944,34 @@ function scApplyScorer(doc){
   if(missingEntity) notes.push('it was saved for "'+doc.entity+'", which this schema does not have, so it was applied to '+curEnt().name+".");
   notes.push(...r.warnings);
   scStatus("Scorer imported: "+sc.rules.length+" rule"+(sc.rules.length===1?"":"s")+"."+(notes.length?" "+notes.join(" "):""),(missingEntity||r.warnings.length)?"err":"ok");
+}
+/* A matcher file is the rules alone: what a team iterates on, independent of
+   which entity, seed or bands it is scored against. Importing one replaces
+   the rules and touches nothing else in the dialog. */
+$("sc-matcher-export").addEventListener("click",()=>{
+  const doc=matcherDocument({entity:curEnt().name,rules:scRules});
+  saveBlob(JSON.stringify(doc,null,2),"application/json","matcher-"+slug(curEnt().name)+".json");
+  scStatus("Matcher saved: "+doc.rules.length+" rule"+(doc.rules.length===1?"":"s")+".","ok");
+});
+$("sc-matcher-import").addEventListener("click",()=>$("sc-matcher-file").click());
+$("sc-matcher-file").addEventListener("change",e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ scApplyMatcher(JSON.parse(rd.result)); }catch(err){ scStatus("Import failed: "+err.message,"err"); } };
+  rd.readAsText(file);
+  e.target.value="";
+});
+function scApplyMatcher(doc){
+  const r=normalizeMatcher(doc,scMatchFields());
+  if(!r.ok) throw new Error(r.error);
+  scRules=r.matcher.rules;
+  scSetMode("simulate");
+  scRules=r.matcher.rules;                // scSetMode suggests into an empty list; the file wins even when it is empty
+  renderRules();
+  const notes=[];
+  if(doc.entity&&doc.entity!==curEnt().name) notes.push('it was saved for "'+doc.entity+'"; applied to '+curEnt().name+".");
+  notes.push(...r.warnings);
+  scStatus("Matcher imported: "+scRules.length+" rule"+(scRules.length===1?"":"s")+"."+(notes.length?" "+notes.join(" "):""),r.warnings.some(w=>/does not have/.test(w))?"err":"ok");
 }
 $("sc-close").addEventListener("click",()=>scoreDlg.close());
 scoreDlg.addEventListener("click",e=>{ if(e.target===scoreDlg) scoreDlg.close(); });   // backdrop click
