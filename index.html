@@ -259,6 +259,8 @@ main{max-width:1680px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-tem
 .var-row .chg b{color:var(--fg);font-weight:600}
 .var-row .chips{display:flex;gap:4px;flex-wrap:wrap}
 .var-row .more{cursor:pointer;text-decoration:underline dotted}
+.sc-table td.pass{color:var(--ok)}
+.sc-table td.fail{color:var(--err)}
 .var-row .verdict{font-size:.68rem}
 .sc-list{font-family:var(--mono);font-size:.72rem;line-height:1.6;max-height:180px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;white-space:pre}
 details.sc-det summary{cursor:pointer;font-size:.78rem;font-weight:600;color:var(--ink)}
@@ -576,7 +578,7 @@ import {
   useFaker, hasFaker, getCatalog, fk,
   TYPES, TYPE_NAMES, newEntity, newField, nextFieldId,
   entRowCount, runAll, serializeRows as serializeAs,
-  jaroWinkler, SIM_FNS, fieldKind
+  jaroWinkler, SIM_FNS, fieldKind, damageValue, corruptToTarget, uuid, initRun, evalFormula
 } from "./engine.js";
 import {
   scoreAll, truthFromRecords, truthSummary, parsePairsText, parseRecordsText, parseLabelsText, looksLikeHeader,
@@ -584,7 +586,7 @@ import {
 } from "./scoring.js";
 import { zipFiles, uniqueEntryName } from "./zip.js";
 import { xlsxFiles } from "./xlsx.js";
-import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer, matcherDocument, normalizeMatcher, matcherPrompt, candidatesOf, classifyChange, auditVariants, changeLabel } from "./matcher.js";
+import { COMPARISONS, comparison, newRule, newComparison, runMatcher, suggestRules, explainPair, attributeMisses, scorerDocument, normalizeScorer, matcherDocument, normalizeMatcher, matcherPrompt, candidatesOf, classifyChange, auditVariants, changeLabel, whatIf } from "./matcher.js";
 
 /* faker.iife.js is a classic script, so it has already run and left FakerLib on
    the global, which engine.js binds by itself. Only the CDN fallback -- for a
@@ -1605,7 +1607,11 @@ function scRender(res,note,rules){
         <label for="sc-var-kind">change</label><select id="sc-var-kind"><option value="">any</option>${au.kinds.map(k=>`<option value="${k}">${escHtml(changeLabel(k))}</option>`).join("")}</select>
         <label for="sc-var-field">field</label><select id="sc-var-field"><option value="">any</option>${au.fields.map(f=>`<option value="${escAttr(f)}">${escHtml(f)}</option>`).join("")}</select>
       </div>
-      <div id="sc-var-list"></div>`;
+      <div id="sc-var-list"></div>
+      <div class="sc-title" style="margin-top:6px">What if the generator hit this field</div>
+      <div class="hint">The list above is the damage this run happened to make. This asks the other question: pick a record and a field, and every value ${escHtml(curEnt().name)}'s own dup settings could turn it into is run against each rule.</div>
+      <div class="insp-pick"><input id="sc-wi-id" placeholder="record id" aria-label="Record id"><select id="sc-wi-field" aria-label="Field to damage">${scMatchFields().filter(f=>f!==$("sc-idfield").value).map(f=>`<option value="${escAttr(f)}">${escHtml(f)}</option>`).join("")}</select><button type="button" id="sc-wi-go" class="soft">Try every damage</button></div>
+      <div id="sc-wi" hidden></div>`;
   }
   if(scDiag){
     const tg=scDiag.targets.summary, sim=scDiag.sim, best=sim.linkPolicy==="best";
@@ -1629,6 +1635,9 @@ function scRender(res,note,rules){
   if(scDiag&&scDiag.audit&&scDiag.audit.inspected){
     ["sc-var-rule","sc-var-out","sc-var-kind","sc-var-field"].forEach(id=>$(id).addEventListener("change",()=>{scVarPage=1;scVarList();}));
     scVarList();
+    const wgo=()=>{const id=$("sc-wi-id").value.trim(); if(id) scWhatIf(id,$("sc-wi-field").value); else scStatus("Type a record id first.","err");};
+    $("sc-wi-go").addEventListener("click",wgo);
+    $("sc-wi-id").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();wgo();}});
   }
   $("sc-xlsx").hidden=false;
   $("sc-results").hidden=false;
@@ -1770,6 +1779,56 @@ function scInspect(a,b){
 /* The variant list under the rollup: filtered by rule, outcome, kind of
    change and field, paged so a 5,000-variant run does not build one giant
    table. Each row is a click into the pair inspector. */
+/* What the entity's own dup settings would do to one field: the same
+   operations damageRow uses, one draw at a time, seeded from the run so the
+   panel repeats. Returns null with a reason when the settings never touch it. */
+function scDamageFor(en,f){
+  const lvl=en.dupLevel||"off", k=fieldKind(f);
+  if(k==="formula") return {note:"a formula is never damaged itself; it is recomputed from its sources. Pick one of the fields it reads."};
+  if(k==="uuid") return {note:"regenerated for every variant: no two records share it.",damage:()=>uuid()};
+  if(k==="keep") return {note:(f.type==="Row Number"?"renumbered per record":"copied unchanged into every variant")+"; a rule on it "+(f.type==="Row Number"?"never":"always")+" agrees."};
+  if(lvl==="off") return {note:"duplicates are off for "+en.name+"."};
+  if(lvl==="targeted"){
+    if(!f.sim||!f.sim.algo) return {note:"copied unchanged into every variant (no similarity target set on this field)."};
+    const t=Math.min(Math.max(parseFloat(f.sim.target)||0.9,0.5),1), algo=f.sim.algo;
+    return {note:"fuzzed until "+(algo==="lev"?"Levenshtein":"Jaro-Winkler")+" similarity to the original is about "+t+".",damage:v=>corruptToTarget(String(v),algo,t)};
+  }
+  if(lvl!=="heavy"&&k==="number") return {note:"numbers are only damaged at the heavy level."};
+  if(lvl==="light"&&(k==="date"||k==="digits")) return {note:"dates and postal codes are not damaged at the light level."};
+  const what={email:"case flips or a mangled address",phone:"reformatted or a digit changed",date:"shifted a day"+(lvl==="heavy"?" or month and day swapped":""),digits:"a digit changed",number:"nudged by one"}[k]||
+    (lvl==="light"?"case flipped or a space slipped in":lvl==="medium"?"a typo, case flipped or a space slipped in":"one or two typos, case flipped, or blanked");
+  return {note:lvl+" damage on this field means "+what+".",damage:v=>damageValue(k,lvl,v)};
+}
+function scWhatIf(id,field){
+  const box=$("sc-wi"); if(!box||!scDiag) return;
+  const rec=scDiag.byId.get(String(id));
+  if(!rec){box.innerHTML=`<div class="sc-warn">No record with id "${escHtml(String(id))}" in this run.</div>`;box.hidden=false;return;}
+  const en=curEnt(), f=en.fields.find(x=>x.name===field);
+  if(!f){box.innerHTML=`<div class="sc-warn">No field named "${escHtml(field)}".</div>`;box.hidden=false;return;}
+  const src=scDamageFor(en,f);
+  if(!src.damage){box.innerHTML=`<div class="hint"><b>${escHtml(field)}</b>: ${escHtml(src.note)}</div>`;box.hidden=false;return;}
+  /* seed the engine's stream from the run seed, the record and the field, so the same question gets the same answer */
+  let hsh=0; for(const ch of $("seed").value.trim()+"|"+id+"|"+field) hsh=(hsh*31+ch.charCodeAt(0))>>>0;
+  initRun(hsh%2147483647);
+  const formulas=en.fields.filter(x=>TYPES[x.type]&&TYPES[x.type].formula&&!/\[.*\]/.test(x.name));
+  const derive=r=>{const c={...r}; for(const x of formulas){try{c[x.name]=evalFormula(x.opts.expr||'""',c,undefined);}catch(e){c[x.name]="#ERR";}} return c;};
+  const w=whatIf(scDiag.rules,rec,field,src.damage,{samples:25,derive,type:f.type});
+  const names=scDiag.rules.map((r,i)=>r.name||("Rule "+(i+1)));
+  const onField=c=>c.field===field||formulas.some(x=>x.name===c.field);
+  let out=`<div class="hint"><b>${escHtml(field)}</b> of ${escHtml(String(id))} is <b>${w.original===""?"blank":escHtml(w.original)}</b>. ${escHtml(src.note)} Drawn ${w.samples} times: ${w.distinct} distinct value${w.distinct===1?"":"s"}.</div>
+    <div class="chips" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 6px">${w.byRule.map(r=>`<span class="verdict ${r.rate>=0.95?"tp":r.rate>0?"fp":"fn"}" title="${escAttr(r.name+" survives "+r.survived+" of "+r.samples+" draws")}">${escHtml(r.name)}: ${r.survived}/${r.samples}</span>`).join("")}</div>
+    <div class="sc-wrap"><table class="sc-table"><tr><th>would become</th><th>change</th><th>drawn</th>${names.map(n=>`<th>${escHtml(n)}</th>`).join("")}</tr>`;
+  for(const o of w.outcomes){
+    out+=`<tr><td>${o.value===""?"<i>blank</i>":escHtml(o.value)}</td><td>${o.kind?escHtml(changeLabel(o.kind)):"<i>unchanged</i>"}</td><td>${o.count}</td>`;
+    for(const r of o.rules){
+      const why=r.passed?"":r.evaluatedNothing?"nothing to evaluate":r.failedOn.filter(onField).map(c=>c.field+(c.measured!==null&&c.measured!==undefined?" "+c.measured:"")).join(", ")||r.failedOn.map(c=>c.field).join(", ");
+      out+=`<td class="${r.passed?"pass":"fail"}" title="${escAttr(r.passed?"passes":"fails on "+why)}">${r.passed?"✓":"✗"}${why?` <span class="dim">${escHtml(why)}</span>`:""}</td>`;
+    }
+    out+=`</tr>`;
+  }
+  out+=`</table></div><div class="hint">✓ the rule still links the damaged record to its original; ✗ it does not, with the comparison that failed and what it measured.</div>`;
+  box.innerHTML=out; box.hidden=false;
+}
 const VAR_PAGE=200;
 function scVarFiltered(){
   const au=scDiag.audit;

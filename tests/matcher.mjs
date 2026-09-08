@@ -246,6 +246,32 @@ console.log('=== 7g. what changed in a variant, and what each rule made of it ==
   })());
 }
 
+console.log('=== 7h. what if the generator hit this field ===');
+{
+  const rec = { id: '1', last: 'Durgan', dob: '1972-04-09', key: 'DURGAN19720409' };
+  const rules = [
+    { name: 'Exact surname and dob', confidence: '1', blankAgrees: false, comparisons: [{ field: 'last', kind: 'exact', arg: '' }, { field: 'dob', kind: 'exact', arg: '' }] },
+    { name: 'Fuzzy surname', confidence: '0.9', blankAgrees: false, comparisons: [{ field: 'last', kind: 'jw', arg: '0.85' }, { field: 'dob', kind: 'exact', arg: '' }] },
+    { name: 'Derived key', confidence: '0.8', blankAgrees: false, comparisons: [{ field: 'key', kind: 'exact', arg: '' }] }
+  ];
+  /* a deterministic stand-in for the generator: cycles through four outcomes */
+  const cycle = ['DURGAN', 'Duqan', 'Durgan', 'Dxrgxn'];
+  let n = 0;
+  const damage = () => cycle[n++ % cycle.length];
+  const derive = r => ({ ...r, key: String(r.last).toUpperCase() + String(r.dob).replace(/-/g, '') });
+  const w = M.whatIf(rules, rec, 'last', damage, { samples: 8, derive });
+  check('outcomes are grouped and counted', w.samples === 8 && w.distinct === 4 && w.outcomes.every(o => o.count === 2), w.outcomes.map(o => [o.value, o.count]));
+  const by = Object.fromEntries(w.outcomes.map(o => [o.value, o]));
+  check('each outcome is labelled', by.DURGAN.kind === 'case' && by.Duqan.kind === 'typo' && by.Durgan.kind === null && by.Dxrgxn.kind === 'typo', w.outcomes.map(o => [o.value, o.kind]));
+  check('the exact rule survives only the unchanged draw', by.Durgan.rules[0].passed && !by.DURGAN.rules[0].passed && !by.Duqan.rules[0].passed);
+  check('the failing comparison is reported with what it measured', by.Duqan.rules[1].failedOn.length === 0 && by.DURGAN.rules[1].failedOn[0].field === 'last' && typeof by.DURGAN.rules[1].failedOn[0].measured === 'number', by.DURGAN.rules[1]);
+  check('derive lets a rule on a formula key see the key it would become', !by.Duqan.rules[2].passed && by.Durgan.rules[2].passed);
+  check('per-rule survival is summed over draws', w.byRule[0].survived === 2 && w.byRule[0].rate === 0.25 && w.byRule[1].survived === 4 && w.byRule[2].survived === 4, w.byRule);
+  check('outcomes come most frequent first', (() => { n = 0; const w2 = M.whatIf(rules, rec, 'last', () => (n++ % 3 ? 'Durgan' : 'Duqan'), { samples: 9 }); return w2.outcomes[0].value === 'Durgan' && w2.outcomes[0].count === 6; })());
+  check('a blank draw is an outcome too', (() => { const w3 = M.whatIf(rules, rec, 'last', () => '', { samples: 3 }); return w3.outcomes[0].value === '' && w3.outcomes[0].kind === 'blanked' && !w3.outcomes[0].rules[0].passed; })());
+  check('nested fields work through dot paths', (() => { const r2 = { id: '1', address: { zip: '64093' } }; const w4 = M.whatIf([{ name: 'z', confidence: '1', blankAgrees: false, comparisons: [{ field: 'address.zip', kind: 'exact', arg: '' }] }], r2, 'address.zip', () => '64098', { samples: 2 }); return w4.original === '64093' && w4.outcomes[0].kind === 'digits' && !w4.outcomes[0].rules[0].passed; })());
+}
+
 console.log('=== 7c. a scorer as a file ===');
 {
   const state = { entity: 'Patients', idField: 'seq', blockField: 'zip', mode: 'simulate', closeTransitively: false, autoMerge: 0.9, reviewFloor: 0.7,

@@ -561,6 +561,48 @@ export function auditVariants(rules, byId, variants) {
     caught: out.filter(v => v.caught).length, lost: out.filter(v => !v.caught).length };
 }
 
+/* ---------- what if: every damage the generator could do to one field ----------
+   The variant browser shows the damage this run happened to produce. This
+   asks the other question: for one record and one field, if the generator's
+   own dup settings hit that field, which of the values it can produce would
+   each rule still accept? The damage function is supplied by the caller
+   (the page hands in the engine's own operations, seeded from the run), so
+   this stays testable with a deterministic stand-in. */
+/**
+ * @param {object[]} rules
+ * @param {object} record the original
+ * @param {string} field the field to damage
+ * @param {(value:any)=>any} damage one draw of the generator's damage for this field
+ * @param {{samples?:number, derive?:(rec:object)=>object, type?:string}} [opts]
+ *   derive recomputes formula fields on the damaged copy, so a rule on a
+ *   derived key sees what the key would become
+ */
+export function whatIf(rules, record, field, damage, opts = {}) {
+  const samples = Math.max(1, opts.samples || 25);
+  const original = getPath(record, field);
+  const seen = new Map();                                   // produced value -> count
+  for (let i = 0; i < samples; i++) {
+    const v = damage(original);
+    const key = v === null || v === undefined ? "" : String(v);
+    seen.set(key, (seen.get(key) || 0) + 1);
+  }
+  const outcomes = [...seen.entries()].map(([value, count]) => {
+    let variant = { ...record, [field]: value };
+    if (opts.derive) variant = opts.derive(variant);
+    const ex = explainPair(rules, record, variant);
+    return {
+      value, count, kind: classifyChange(original, value, { type: opts.type }),
+      rules: ex.map(rx => ({ index: rx.index, passed: rx.passed, evaluatedNothing: rx.evaluatedNothing,
+        failedOn: rx.comparisons.filter(c => !c.passed).map(c => ({ field: c.field, kind: c.kind, label: c.label, arg: c.arg, measured: c.measured, unit: c.unit })) }))
+    };
+  }).sort((a, b) => b.count - a.count || (a.value < b.value ? -1 : 1));
+  const byRule = rules.map((r, i) => {
+    const survived = outcomes.reduce((n, o) => n + (o.rules[i].passed ? o.count : 0), 0);
+    return { index: i, name: r.name || ("Rule " + (i + 1)), survived, samples, rate: survived / samples };
+  });
+  return { field, original: original === null || original === undefined ? "" : String(original), samples, distinct: outcomes.length, outcomes, byRule };
+}
+
 /* ---------- a scorer as a file ----------
    Everything the dialog needs to score again later, in one document: the
    rules, which field identifies a record, what to block on, how transitivity
