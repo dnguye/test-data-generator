@@ -201,13 +201,52 @@ function rulePasses(rule, a, b) {
   return evaluated > 0;
 }
 
+/* How close two records are under a rule that passed, 0..1: an equality
+   comparison that agreed counts 1, a similarity comparison its measured
+   value, a tolerance comparison 1/(1+difference), a skipped blank nothing.
+   Confidence says how much a rule is trusted; this says how convincingly a
+   particular pair met it, which is what separates two candidates the same
+   rule accepted. */
+function ruleStrength(rule, a, b) {
+  let sum = 0, n = 0;
+  for (const c of rule.comparisons) {
+    const def = comparison(c.kind);
+    if (!def) continue;
+    const va = getPath(a, c.field), vb = getPath(b, c.field);
+    if (isBlank(va) || isBlank(vb)) continue;
+    let v = 1;
+    if (def.measure) {
+      const m = def.measure(va, vb);
+      if (m === null || m === undefined) continue;
+      v = def.unit === "similarity" ? m : 1 / (1 + m);
+    }
+    sum += v; n++;
+  }
+  return n ? sum / n : 0;
+}
+
+/* Candidate order for one record: the higher score first, then the pair more
+   rules agreed on, then the closer one, then the lower id so the choice is
+   reproducible. Exported so the tie-break is tested, not assumed. */
+export function rankLink(x, y) {
+  return (y.score - x.score) || (y.rules.length - x.rules.length) || (y.strength - x.strength) || (x.other < y.other ? -1 : x.other > y.other ? 1 : 0);
+}
+export const LINK_POLICIES = ["all", "best"];
+
 /* ---------- running the matcher ---------- */
 /**
  * @param {object[]} records  the generated rows
  * @param {object[]} rules
- * @param {{idField: string, maxComparisons?: number}} options
+ * @param {{idField: string, maxComparisons?: number, linkPolicy?: "all"|"best"}} options
+ *   linkPolicy "all" (default) links every pair some rule passed. "best"
+ *   matches each record to its single highest-ranked candidate, the way a
+ *   hub matches an incoming record to one master: a pair survives when it
+ *   is the best candidate of at least one of its two records.
  * @returns {{
- *   pairs: Array<[string,string,number]>,   linked pairs with their score
+ *   pairs: Array<[string,string,number]>,   linked pairs with their score, after the policy
+ *   links: Array<{a,b,score,strength,rules:number[],chosen:boolean}>,  every pair some rule passed
+ *   matchedTo: Object<string,string>,       each record's best candidate, whichever the policy
+ *   droppedByPolicy: number, linkPolicy: string,
  *   candidates: Array<[string,string]>,     every pair actually compared
  *   perRule: Array<{name,linked,compared,blocked}>,
  *   comparisons: number, unblockedRules: string[]
@@ -216,6 +255,8 @@ function rulePasses(rule, a, b) {
 export function runMatcher(records, rules, options = {}) {
   const idField = options.idField;
   if (!idField) throw new Error("runMatcher needs an idField");
+  const linkPolicy = options.linkPolicy || "all";
+  if (!LINK_POLICIES.includes(linkPolicy)) throw new Error('unknown link policy "' + linkPolicy + '"; use "all" or "best"');
   if (!Array.isArray(records) || !records.length) throw new Error("no records to match");
   if (!Array.isArray(rules) || !rules.length) throw new Error("Add at least one match rule.");
 
@@ -291,9 +332,10 @@ export function runMatcher(records, rules, options = {}) {
     if (!rulePasses(rules[ri], records[a], records[b])) return;
     perRule[ri].linked++;
     let hit = linked.get(pk);
-    if (!hit) linked.set(pk, hit = { i: a, j: b, score: 0, by: new Set() });
+    if (!hit) linked.set(pk, hit = { i: a, j: b, score: 0, strength: 0, by: new Set() });
     hit.by.add(ri);
     hit.score = Math.max(hit.score, ruleConfidence(rules[ri]));
+    hit.strength = Math.max(hit.strength, ruleStrength(rules[ri], records[a], records[b]));
   };
 
   rules.forEach((rule, ri) => {
@@ -307,17 +349,59 @@ export function runMatcher(records, rules, options = {}) {
     }
   });
 
-  const pairs = [...linked.values()].map(h => [ids[h.i], ids[h.j], Math.round(h.score * 1000) / 1000]);
-  const pairRules = [...linked.values()].map(h => [...h.by].sort());
+  const links = [...linked.values()].map(h => ({
+    a: ids[h.i], b: ids[h.j], score: Math.round(h.score * 1000) / 1000, strength: Math.round(h.strength * 1000) / 1000,
+    rules: [...h.by].sort((x, y) => x - y), chosen: true
+  }));
+
+  /* Each record's pick: the best of the candidates it was linked to. Under
+     "best" that pick is the only link the record keeps; under "all" it is
+     still reported, as the answer to "which record would this match to". */
+  const byRecord = new Map();
+  for (const l of links) {
+    const push = (me, other) => { let x = byRecord.get(me); if (!x) byRecord.set(me, x = []); x.push({ link: l, other, score: l.score, rules: l.rules, strength: l.strength }); };
+    push(l.a, l.b); push(l.b, l.a);
+  }
+  const matchedTo = {};
+  const keep = new Set();
+  for (const [me, cands] of byRecord) {
+    cands.sort(rankLink);
+    matchedTo[me] = cands[0].other;
+    keep.add(cands[0].link);
+  }
+  let droppedByPolicy = 0;
+  if (linkPolicy === "best") for (const l of links) if (!keep.has(l)) { l.chosen = false; droppedByPolicy++; }
+  const kept = links.filter(l => l.chosen);
+  const pairs = kept.map(l => [l.a, l.b, l.score]);
+  const pairRules = kept.map(l => l.rules);
   return {
     pairs,
     pairRules,
+    links,
+    matchedTo,
+    droppedByPolicy,
+    linkPolicy,
     candidates: [...candidates.values()].map(([a, b]) => [ids[a], ids[b]]),
     perRule,
     comparisons: compared,
     totalPossible: allPairs,
     unblockedRules: unblocked
   };
+}
+
+/* The candidates one record was linked to, best first, with the one the
+   matcher picked flagged. Under "best" the others were dropped; under "all"
+   they were all linked, and the flag says which one a hub would have chosen. */
+export function candidatesOf(result, id) {
+  const me = String(id);
+  const out = [];
+  for (const l of result.links || []) {
+    if (l.a !== me && l.b !== me) continue;
+    const other = l.a === me ? l.b : l.a;
+    out.push({ to: other, other, score: l.score, strength: l.strength, rules: l.rules, linked: l.chosen, picked: result.matchedTo[me] === other });
+  }
+  out.sort(rankLink);
+  return out.map(({ other, ...rest }) => rest);
 }
 
 /* ---------- explaining one pair ----------
@@ -443,8 +527,15 @@ export function scorerDocument(state) {
     closeTransitively: state.closeTransitively !== false,
     autoMerge: Number.isFinite(Number(state.autoMerge)) ? Number(state.autoMerge) : 0.92,
     reviewFloor: Number.isFinite(Number(state.reviewFloor)) ? Number(state.reviewFloor) : 0.78,
+    linkPolicy: LINK_POLICIES.includes(state.linkPolicy) ? state.linkPolicy : "all",
     rules: rulesDocument(state.rules)
   };
+}
+function readPolicy(input, warnings) {
+  if (input.linkPolicy === undefined || input.linkPolicy === null || input.linkPolicy === "") return "all";
+  if (LINK_POLICIES.includes(input.linkPolicy)) return input.linkPolicy;
+  warnings.push('unknown link policy "' + input.linkPolicy + '"; "all" was used.');
+  return "all";
 }
 /**
  * @param {unknown} input parsed JSON: a scorer file, or a matcher file (its rules are taken and the rest defaults)
@@ -457,7 +548,7 @@ export function normalizeScorer(input, fieldNames = []) {
   const warnings = [];
   const rules = normalizeRules(input.rules, fieldNames, warnings);
   const known = new Set(fieldNames);
-  if (what.kind === "matcher") warnings.push("this is a matcher file, so only the rules came from it; the fields and bands here are defaults.");
+  if (what.kind === "matcher") warnings.push("this is a matcher file, so only the rules and link policy came from it; the fields and bands here are defaults.");
   const num = (v, dflt) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : dflt; };
   let autoMerge = num(input.autoMerge, 0.92), reviewFloor = num(input.reviewFloor, 0.78);
   if (reviewFloor > autoMerge) { warnings.push("review floor was above auto-merge; both reset to defaults."); autoMerge = 0.92; reviewFloor = 0.78; }
@@ -472,7 +563,7 @@ export function normalizeScorer(input, fieldNames = []) {
       idField: known.size && idField && !known.has(idField) ? "" : idField,
       blockField: known.size && blockField && !known.has(blockField) ? "" : blockField,
       mode: input.mode === "simulate" || (input.mode === undefined && rules.length) ? "simulate" : "paste",
-      closeTransitively: input.closeTransitively !== false, autoMerge, reviewFloor, rules
+      closeTransitively: input.closeTransitively !== false, autoMerge, reviewFloor, linkPolicy: readPolicy(input, warnings), rules
     }
   };
 }
@@ -482,7 +573,8 @@ export function normalizeScorer(input, fieldNames = []) {
    seed or bands it is scored against. A scorer file also opens here, since
    it carries the same rules plus settings this reader ignores. */
 export function matcherDocument(state) {
-  return { kind: "matcher", version: MATCHER_VERSION, entity: state.entity || "", rules: rulesDocument(state.rules) };
+  return { kind: "matcher", version: MATCHER_VERSION, entity: state.entity || "",
+    linkPolicy: LINK_POLICIES.includes(state.linkPolicy) ? state.linkPolicy : "all", rules: rulesDocument(state.rules) };
 }
 /**
  * @param {unknown} input parsed JSON: a matcher file, or a scorer file (only its rules are read)
@@ -494,8 +586,8 @@ export function normalizeMatcher(input, fieldNames = []) {
   if (!what.ok) return what;
   const warnings = [];
   const rules = normalizeRules(input.rules, fieldNames, warnings);
-  if (what.kind === "scorer") warnings.push("this is a scorer file; only its rules were taken.");
-  return { ok: true, warnings, kind: what.kind, matcher: { kind: "matcher", version: MATCHER_VERSION, entity: String(input.entity || ""), rules } };
+  if (what.kind === "scorer") warnings.push("this is a scorer file; only its rules and link policy were taken.");
+  return { ok: true, warnings, kind: what.kind, matcher: { kind: "matcher", version: MATCHER_VERSION, entity: String(input.entity || ""), linkPolicy: readPolicy(input, warnings), rules } };
 }
 
 /* ---------- a prompt for an AI ----------
@@ -555,7 +647,7 @@ export function matcherPrompt(info) {
     ...(info.idField ? ["Record id field for scoring: " + info.idField + " (never compare it)."] : []),
     "",
     "## File shape",
-    JSON.stringify({ kind: "matcher", version: MATCHER_VERSION, entity, rules: [
+    JSON.stringify({ kind: "matcher", version: MATCHER_VERSION, entity, linkPolicy: "best", rules: [
       { name: "Fuzzy surname and exact birth date", confidence: "1", blankAgrees: false,
         comparisons: [{ field: "last_name", kind: "jw", arg: "0.85" }, { field: "birth_date", kind: "exact", arg: "" }] }
     ] }, null, 2),
@@ -566,6 +658,7 @@ export function matcherPrompt(info) {
     "- blankAgrees false (the default): a blank value fails its comparison. true: a blank on either side counts as agreeing, but a rule never passes on blanks alone.",
     "- field is the name exactly as listed above; nested fields use dot paths such as address.zip. Values are compared as strings.",
     "- Blocking is derived from the rule: a rule with at least one equality comparison (exact, normalized, prefix, soundex, tokens) only compares records that share that key, which keeps it fast. A rule made only of similarity comparisons compares every pair.",
+    "- linkPolicy, at the top level: \"all\" links every candidate some rule passed; \"best\" matches each record to its single best candidate (highest score, then most rules passed, then closest values), the way a hub matches an incoming record to one master. Use \"best\" when a record should never merge into more than one other.",
     "",
     "## Comparison kinds (kind, then its arg)",
     ...comparisonHelp(),

@@ -30,6 +30,7 @@ between one field of record A and the same field of record B.
   "kind": "matcher",       // required: exactly "matcher"
   "version": 1,            // required: 1
   "entity": "Patients",    // optional: the entity it was written for
+  "linkPolicy": "all",     // optional: "all" (default) or "best"; see below
   "rules": [ ... ]         // required: one entry per rule; may be empty
 }
 ```
@@ -106,6 +107,34 @@ says so before it runs, and refuses beyond three million comparisons.
 Give every rule one equality comparison on a field the duplicates rarely
 damage: a state, a postal code, a birth year, a Soundex of the surname.
 
+## Which record a record matches to
+
+When several candidates pass a rule for the same record, `linkPolicy` decides
+what the matcher does with them.
+
+- `"all"`, the default, links every pair some rule passed. Every candidate
+  becomes a link; the scorer's transitive closure then folds them into one
+  cluster. This is what a pairwise scorer usually sees.
+- `"best"` matches each record to its **single best candidate**, the way a
+  hub matches an incoming record to one master. A pair survives only when it
+  is the best candidate of at least one of its two records; the rest are
+  dropped and counted. Use it when a record must never merge into more than
+  one other, and to see how much of the over-matching a best-of choice would
+  remove on its own.
+
+The best candidate is the one with the highest score (the confidence of the
+strongest rule that passed), then the one more rules agreed on, then the one
+whose values were closest (an equality comparison that agreed counts 1, a
+similarity comparison its measured value, a tolerance comparison
+1 ÷ (1 + difference), averaged over the rule), then the lower id, so the
+choice is reproducible. Whatever the policy, the run reports each record's
+pick, and the page's *Match targets* lookup lists every candidate a record
+had, best first, with the one it would match to marked.
+
+```json
+{ "kind": "matcher", "version": 1, "entity": "Patients", "linkPolicy": "best", "rules": [ ... ] }   // one target per record
+```
+
 ## Choosing fields and thresholds
 
 The generator's duplicate variants are the ground truth, so what it does to
@@ -143,6 +172,7 @@ For a Patients entity where `last_name` is fuzzed to Jaro-Winkler 0.84,
   "kind": "matcher",
   "version": 1,
   "entity": "Patients",
+  "linkPolicy": "best",
   "rules": [
     {
       "name": "State, fuzzy surname, fuzzy birth date",
@@ -202,7 +232,8 @@ Rules: two to four, each with two to four comparisons and a short name.
 Every rule needs one equality comparison (exact, normalized, prefix, soundex,
 tokens) for blocking. A rule links when every comparison passes; records
 match when any rule links them. confidence "1" for auto-merge rules, lower
-for review. Never compare row numbers, UUIDs or formula fields alone. Kinds:
+for review. Set "linkPolicy": "best" so each record matches its single best
+candidate. Never compare row numbers, UUIDs or formula fields alone. Kinds:
 exact, normalized, prefix(arg N), soundex, tokens, jw(arg 0..1), lev(arg
 0..1), jwTokens(arg 0..1), numeric(arg ±), days(arg days).
 ```
@@ -210,7 +241,7 @@ exact, normalized, prefix(arg N), soundex, tokens, jw(arg 0..1), lev(arg
 ## Scorer files
 
 *Export scorer* writes a superset of this format with `"kind": "scorer"`,
-plus `idField`, `blockField`, `mode`, `closeTransitively`, `autoMerge` and
-`reviewFloor`. Either file opens in either importer: a scorer file on *Import
+plus `idField`, `blockField`, `mode`, `closeTransitively`, `autoMerge`,
+`reviewFloor` and the same `linkPolicy`. Either file opens in either importer: a scorer file on *Import
 matcher* gives up its rules only; a matcher file on *Import scorer* fills the
 rules and leaves every other setting as it was.
