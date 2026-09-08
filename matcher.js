@@ -377,6 +377,80 @@ export function attributeMisses(rules, byId, missedPairs) {
   return { rules: out, inspected };
 }
 
+/* ---------- a scorer as a file ----------
+   Everything the dialog needs to score again later, in one document: the
+   rules, which field identifies a record, what to block on, how transitivity
+   and the bands are set. Same idea as the schema file -- build it once in the
+   UI, export, import into another session or hand to a colleague. Validation
+   is here rather than in the page so it is tested, and so a stranger's file
+   is normalised on the way in instead of trusted. */
+export const SCORER_VERSION = 1;
+export function scorerDocument(state) {
+  return {
+    kind: "scorer",
+    version: SCORER_VERSION,
+    entity: state.entity || "",
+    idField: state.idField || "",
+    blockField: state.blockField || "",
+    mode: state.mode === "simulate" ? "simulate" : "paste",
+    closeTransitively: state.closeTransitively !== false,
+    autoMerge: Number.isFinite(Number(state.autoMerge)) ? Number(state.autoMerge) : 0.92,
+    reviewFloor: Number.isFinite(Number(state.reviewFloor)) ? Number(state.reviewFloor) : 0.78,
+    rules: (state.rules || []).map(r => ({
+      name: String(r.name || ""), confidence: String(r.confidence ?? "0.95"), blankAgrees: !!r.blankAgrees,
+      comparisons: (r.comparisons || []).map(c => ({ field: String(c.field || ""), kind: String(c.kind || "exact"), arg: c.arg === undefined || c.arg === null ? "" : String(c.arg) }))
+    }))
+  };
+}
+/**
+ * @param {unknown} input parsed JSON
+ * @param {string[]} [fieldNames] the fields available now; rules naming others are kept but warned about
+ * @returns {{ok:true, scorer:object, warnings:string[]}|{ok:false, error:string}}
+ */
+export function normalizeScorer(input, fieldNames = []) {
+  const bad = error => ({ ok: false, error });
+  if (!input || typeof input !== "object" || Array.isArray(input)) return bad("Expected a scorer file: a JSON object written by Export scorer.");
+  if (input.kind !== undefined && input.kind !== "scorer") return bad('This is a "' + input.kind + '" file, not a scorer. Use Export scorer to make one.');
+  if (Array.isArray(input.entities) && !input.rules) return bad("This is a schema file. Use Import schema for it; Import scorer wants the file written by Export scorer.");
+  if (!Array.isArray(input.rules)) return bad("A scorer file needs a rules array (it may be empty).");
+  const warnings = [];
+  const known = new Set(fieldNames);
+  const rules = input.rules.map((r, i) => {
+    const where = "rule " + (i + 1) + (r && r.name ? ' "' + r.name + '"' : "");
+    if (!r || typeof r !== "object") throw new Error(where + " is not an object.");
+    if (!Array.isArray(r.comparisons)) throw new Error(where + " has no comparisons array.");
+    const conf = parseFloat(r.confidence);
+    const comparisons = r.comparisons.map((c, ci) => {
+      if (!c || typeof c !== "object") throw new Error(where + ", comparison " + (ci + 1) + " is not an object.");
+      const def = comparison(String(c.kind || ""));
+      if (!def) throw new Error(where + ': unknown comparison "' + c.kind + '".');
+      const field = String(c.field || "");
+      if (known.size && field && !known.has(field)) warnings.push(where + ' compares "' + field + '", which this entity does not have.');
+      const arg = c.arg === undefined || c.arg === null || c.arg === "" ? (def.arg ? def.argDefault : "") : String(c.arg);
+      return { field, kind: def.id, arg };
+    });
+    return { name: String(r.name || ("Rule " + (i + 1))), confidence: Number.isFinite(conf) ? String(Math.min(Math.max(conf, 0), 1)) : "0.95",
+      blankAgrees: !!r.blankAgrees, comparisons };
+  });
+  const num = (v, dflt) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : dflt; };
+  let autoMerge = num(input.autoMerge, 0.92), reviewFloor = num(input.reviewFloor, 0.78);
+  if (reviewFloor > autoMerge) { warnings.push("review floor was above auto-merge; both reset to defaults."); autoMerge = 0.92; reviewFloor = 0.78; }
+  const idField = String(input.idField || "");
+  if (known.size && idField && !known.has(idField)) warnings.push('record id field "' + idField + '" is not in this entity; the default was kept.');
+  const blockField = String(input.blockField || "");
+  if (known.size && blockField && !known.has(blockField)) warnings.push('blocking field "' + blockField + '" is not in this entity; set to none.');
+  return {
+    ok: true, warnings,
+    scorer: {
+      kind: "scorer", version: SCORER_VERSION, entity: String(input.entity || ""),
+      idField: known.size && idField && !known.has(idField) ? "" : idField,
+      blockField: known.size && blockField && !known.has(blockField) ? "" : blockField,
+      mode: input.mode === "simulate" || (input.mode === undefined && rules.length) ? "simulate" : "paste",
+      closeTransitively: input.closeTransitively !== false, autoMerge, reviewFloor, rules
+    }
+  };
+}
+
 /* ---------- starting points ----------
    Rules proposed from the field names a schema actually has. Not clever, and
    not meant to be: a first configuration to edit, so nobody faces an empty
