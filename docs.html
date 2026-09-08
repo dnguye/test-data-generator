@@ -378,6 +378,15 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   for. <b>Import scorer</b> reads one back. If the schema has an entity of that name the dialog switches to it; rules
   naming fields the entity lacks are kept and warned about rather than dropped. Keep one scorer file beside each schema
   file and the whole experiment travels together.</p>
+  <h3>Variants by rule</h3>
+  <p>The generator keeps every duplicate variant's original, so the report can go beyond "this pair was missed" to
+  "this rule loses every typo'd surname and survives every case change". The <b>Variants by rule</b> table has a
+  row per rule and a column per kind of change the variants carry (case only, spacing, typo, fuzzed, digits changed,
+  date shifted, reformatted, blanked, id regenerated, derived by formula), each cell the variants of that kind the
+  rule still caught; a second table does the same by field. Under it, a filtered list of the variants themselves:
+  original → variant, every change spelled out, and a caught or lost chip per rule, each row a click into the pair
+  inspector. Filter to one rule and <i>lost</i> and you are looking at exactly what that rule needs to tolerate.
+  Export to Excel adds the list and the rollup as sheets.</p>
   <h3>Which record a record matches to</h3>
   <p>By default a record is linked to <b>every</b> candidate some rule passed, and transitive closure folds them into a
   cluster. Set <i>When several candidates pass</i> to <b>match each record to its single best candidate</b> and the

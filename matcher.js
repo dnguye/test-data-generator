@@ -461,6 +461,106 @@ export function attributeMisses(rules, byId, missedPairs) {
   return { rules: out, inspected };
 }
 
+/* ---------- what changed in a variant, and what each rule made of it ----------
+   The generator keeps every variant's original, so a variant is not just a
+   pair that should match: it is a record with a known list of damaged fields.
+   Labelling each change lets the report say "this rule loses every typo'd
+   surname and survives every case change", which is the sentence that decides
+   whether to swap an exact comparison for a fuzzy one. */
+export const CHANGE_KINDS = [
+  { id: "case", label: "case only" },
+  { id: "spacing", label: "spacing only" },
+  { id: "typo", label: "typo (1–2 edits)" },
+  { id: "fuzzed", label: "fuzzed (several edits)" },
+  { id: "digits", label: "digits changed" },
+  { id: "date", label: "date shifted" },
+  { id: "format", label: "reformatted" },
+  { id: "blanked", label: "blanked" },
+  { id: "filled", label: "filled in" },
+  { id: "regenerated", label: "id regenerated" },
+  { id: "derived", label: "derived (formula)" },
+  { id: "other", label: "rewritten" }
+];
+const KIND_LABEL = new Map(CHANGE_KINDS.map(k => [k.id, k.label]));
+export function changeLabel(id) { return KIND_LABEL.get(id) || id; }
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+function levDistance(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/**
+ * @param {unknown} from the original's value
+ * @param {unknown} to the variant's value
+ * @param {{type?: string}} [hint] the field's type, when known
+ * @returns {string|null} a CHANGE_KINDS id, or null when nothing changed
+ */
+export function classifyChange(from, to, hint = {}) {
+  const a = from === null || from === undefined ? "" : String(from), b = to === null || to === undefined ? "" : String(to);
+  if (a === b) return null;
+  if (/^formula/i.test(hint.type || "")) return "derived";
+  if (a.trim() && !b.trim()) return "blanked";
+  if (!a.trim() && b.trim()) return "filled";
+  if (UUID_RE.test(a) && UUID_RE.test(b)) return "regenerated";
+  if (a.toLowerCase() === b.toLowerCase()) return "case";
+  const squash = x => x.replace(/\s+/g, "").toLowerCase();
+  if (squash(a) === squash(b)) return "spacing";
+  if (DATE_RE.test(a) && DATE_RE.test(b)) return "date";
+  const da = a.replace(/\D/g, ""), db = b.replace(/\D/g, "");
+  if (da.length >= 4 && da === db) return "format";                     // same digits, different dressing: a phone
+  if (a.includes("@") && b.includes("@") && squash(a.replace(/\./g, "")) === squash(b.replace(/\./g, ""))) return "format";
+  if (da.length >= 3 && da.length === db.length && da !== db && a.replace(/\d/g, "#") === b.replace(/\d/g, "#")) return "digits";
+  const d = levDistance(a.toLowerCase(), b.toLowerCase());
+  if (d <= 2) return "typo";
+  if (levSim(a.toLowerCase(), b.toLowerCase()) >= 0.5) return "fuzzed";
+  return "other";
+}
+
+/**
+ * Every variant against every rule.
+ * @param {object[]} rules
+ * @param {Map<string,object>} byId records by id
+ * @param {Array<{id:string, originalId:string, changes:Array<{field:string,from:any,to:any,kind:string}>}>} variants
+ */
+export function auditVariants(rules, byId, variants) {
+  const byRule = rules.map((r, i) => ({ index: i, name: r.name || ("Rule " + (i + 1)), caught: 0, lost: 0, byKind: {}, byField: {} }));
+  const kinds = new Set(), fields = new Set();
+  const out = [];
+  const bump = (slot, key, caught) => { const x = slot[key] || (slot[key] = { caught: 0, lost: 0 }); if (caught) x.caught++; else x.lost++; };
+  for (const v of variants) {
+    const a = byId.get(String(v.originalId)), b = byId.get(String(v.id));
+    if (!a || !b) continue;
+    const ex = explainPair(rules, a, b);
+    const changed = new Set((v.changes || []).map(c => c.field));
+    const rr = ex.map(rx => {
+      const failedOn = rx.comparisons.filter(c => !c.passed).map(c => ({ field: c.field, kind: c.kind, label: c.label, arg: c.arg, measured: c.measured, unit: c.unit }));
+      return { index: rx.index, passed: rx.passed, evaluatedNothing: rx.evaluatedNothing, failedOn, sunkBy: failedOn.map(f => f.field).filter(f => changed.has(f)) };
+    });
+    const caughtBy = rr.filter(x => x.passed).map(x => x.index);
+    out.push({ id: String(v.id), originalId: String(v.originalId), changes: v.changes || [], rules: rr, caughtBy, caught: caughtBy.length > 0 });
+    /* a variant counts once per kind it carries, however many fields took
+       that kind of damage, so a column's total never exceeds the variants */
+    const kindSet = new Set((v.changes || []).map(c => c.kind)), fieldSet = new Set((v.changes || []).map(c => c.field));
+    rr.forEach(x => {
+      const slot = byRule[x.index];
+      if (x.passed) slot.caught++; else slot.lost++;
+      for (const k of kindSet) { kinds.add(k); bump(slot.byKind, k, x.passed); }
+      for (const f of fieldSet) { fields.add(f); bump(slot.byField, f, x.passed); }
+    });
+  }
+  const order = new Map(CHANGE_KINDS.map((k, i) => [k.id, i]));
+  return { variants: out, byRule, kinds: [...kinds].sort((x, y) => (order.get(x) ?? 99) - (order.get(y) ?? 99)), fields: [...fields].sort(), inspected: out.length,
+    caught: out.filter(v => v.caught).length, lost: out.filter(v => !v.caught).length };
+}
+
 /* ---------- a scorer as a file ----------
    Everything the dialog needs to score again later, in one document: the
    rules, which field identifies a record, what to block on, how transitivity
