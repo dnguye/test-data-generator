@@ -387,6 +387,12 @@ a PAIR  is linked if ANY rule passes                            (or)</code></pre
   original → variant, every change spelled out, and a caught or lost chip per rule, each row a click into the pair
   inspector. Filter to one rule and <i>lost</i> and you are looking at exactly what that rule needs to tolerate.
   Export to Excel adds the list and the rollup as sheets.</p>
+  <p>That list is the damage this run happened to make. <b>What if the generator hit this field</b> asks the other
+  question: pick a record and a field, and the entity's own dup settings are applied to that one value twenty-five
+  times, seeded from the run so the answer repeats. Every distinct value it could become is listed with how often it
+  was drawn, what kind of change it is, and a pass or fail per rule with the comparison that failed and what it
+  measured; formula fields are recomputed on each damaged copy, so a rule on a derived key sees the key it would
+  become. A field the settings never touch says so instead.</p>
   <h3>Which record a record matches to</h3>
   <p>By default a record is linked to <b>every</b> candidate some rule passed, and transitive closure folds them into a
   cluster. Set <i>When several candidates pass</i> to <b>match each record to its single best candidate</b> and the
