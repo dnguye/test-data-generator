@@ -1610,7 +1610,7 @@ function scRender(res,note,rules){
       <div id="sc-var-list"></div>
       <div class="sc-title" style="margin-top:6px">What if the generator hit this field</div>
       <div class="hint">The list above is the damage this run happened to make. This asks the other question: pick a record and a field, and every value ${escHtml(curEnt().name)}'s own dup settings could turn it into is run against each rule.</div>
-      <div class="insp-pick"><input id="sc-wi-id" placeholder="record id" aria-label="Record id"><select id="sc-wi-field" aria-label="Field to damage">${scMatchFields().filter(f=>f!==$("sc-idfield").value).map(f=>`<option value="${escAttr(f)}">${escHtml(f)}</option>`).join("")}</select><button type="button" id="sc-wi-go" class="soft">Try every damage</button></div>
+      <div class="insp-pick"><input id="sc-wi-id" placeholder="record id (blank: first variant's original)" aria-label="Record id" style="min-width:230px"><select id="sc-wi-field" aria-label="Field to damage">${scMatchFields().filter(f=>f!==$("sc-idfield").value).map(f=>`<option value="${escAttr(f)}">${escHtml(f)}</option>`).join("")}</select><button type="button" id="sc-wi-go" class="soft">Try every damage</button></div>
       <div id="sc-wi" hidden></div>`;
   }
   if(scDiag){
@@ -1635,7 +1635,16 @@ function scRender(res,note,rules){
   if(scDiag&&scDiag.audit&&scDiag.audit.inspected){
     ["sc-var-rule","sc-var-out","sc-var-kind","sc-var-field"].forEach(id=>$(id).addEventListener("change",()=>{scVarPage=1;scVarList();}));
     scVarList();
-    const wgo=()=>{const id=$("sc-wi-id").value.trim(); if(id) scWhatIf(id,$("sc-wi-field").value); else scStatus("Type a record id first.","err");};
+    const wgo=()=>{
+      let id=$("sc-wi-id").value.trim(), picked="";
+      if(!id){   /* no id typed: take the pair being inspected, else the first original in the variant list, and say so */
+        id=($("sc-insp-a")&&$("sc-insp-a").value.trim())||(scDiag.audit.variants[0]||{}).originalId||"";
+        if(!id){$("sc-wi").innerHTML='<div class="sc-warn">Type a record id first.</div>';$("sc-wi").hidden=false;$("sc-wi-id").focus();return;}
+        $("sc-wi-id").value=id; picked="No record id was typed, so "+id+" was used. ";
+      }
+      try{ scWhatIf(id,$("sc-wi-field").value,picked); }
+      catch(e){ $("sc-wi").innerHTML='<div class="sc-warn">'+escHtml("Could not run: "+e.message)+"</div>"; $("sc-wi").hidden=false; }
+    };
     $("sc-wi-go").addEventListener("click",wgo);
     $("sc-wi-id").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();wgo();}});
   }
@@ -1748,6 +1757,7 @@ const VERDICT={tp:["correct link","same person, and the matcher linked them"],fp
 function scInspect(a,b){
   if(!scDiag) return;
   const box=$("sc-insp"); if(!box) return;
+  const wi=$("sc-wi-id"); if(wi&&!wi.value.trim()) wi.value=String(a);   // the what-if panel follows the pair being looked at
   const ra=scDiag.byId.get(String(a)), rb=scDiag.byId.get(String(b));
   if(!ra||!rb){box.innerHTML=`<div class="insp"><div class="sc-warn">No record with id "${escHtml(String(!ra?a:b))}" in this run.</div></div>`;box.hidden=false;return;}
   const v=scVerdict(a,b);
@@ -1799,14 +1809,15 @@ function scDamageFor(en,f){
     (lvl==="light"?"case flipped or a space slipped in":lvl==="medium"?"a typo, case flipped or a space slipped in":"one or two typos, case flipped, or blanked");
   return {note:lvl+" damage on this field means "+what+".",damage:v=>damageValue(k,lvl,v)};
 }
-function scWhatIf(id,field){
+function scWhatIf(id,field,prefix){
   const box=$("sc-wi"); if(!box||!scDiag) return;
+  prefix=prefix||"";
   const rec=scDiag.byId.get(String(id));
   if(!rec){box.innerHTML=`<div class="sc-warn">No record with id "${escHtml(String(id))}" in this run.</div>`;box.hidden=false;return;}
   const en=curEnt(), f=en.fields.find(x=>x.name===field);
   if(!f){box.innerHTML=`<div class="sc-warn">No field named "${escHtml(field)}".</div>`;box.hidden=false;return;}
   const src=scDamageFor(en,f);
-  if(!src.damage){box.innerHTML=`<div class="hint"><b>${escHtml(field)}</b>: ${escHtml(src.note)}</div>`;box.hidden=false;return;}
+  if(!src.damage){box.innerHTML=`<div class="hint">${escHtml(prefix)}<b>${escHtml(field)}</b> of ${escHtml(String(id))}: ${escHtml(src.note)} Nothing to try.</div>`;box.hidden=false;return;}
   /* seed the engine's stream from the run seed, the record and the field, so the same question gets the same answer */
   let hsh=0; for(const ch of $("seed").value.trim()+"|"+id+"|"+field) hsh=(hsh*31+ch.charCodeAt(0))>>>0;
   initRun(hsh%2147483647);
@@ -1815,7 +1826,7 @@ function scWhatIf(id,field){
   const w=whatIf(scDiag.rules,rec,field,src.damage,{samples:25,derive,type:f.type});
   const names=scDiag.rules.map((r,i)=>r.name||("Rule "+(i+1)));
   const onField=c=>c.field===field||formulas.some(x=>x.name===c.field);
-  let out=`<div class="hint"><b>${escHtml(field)}</b> of ${escHtml(String(id))} is <b>${w.original===""?"blank":escHtml(w.original)}</b>. ${escHtml(src.note)} Drawn ${w.samples} times: ${w.distinct} distinct value${w.distinct===1?"":"s"}.</div>
+  let out=`<div class="hint">${escHtml(prefix)}<b>${escHtml(field)}</b> of ${escHtml(String(id))} is <b>${w.original===""?"blank":escHtml(w.original)}</b>. ${escHtml(src.note)} Drawn ${w.samples} times: ${w.distinct} distinct value${w.distinct===1?"":"s"}.</div>
     <div class="chips" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 6px">${w.byRule.map(r=>`<span class="verdict ${r.rate>=0.95?"tp":r.rate>0?"fp":"fn"}" title="${escAttr(r.name+" survives "+r.survived+" of "+r.samples+" draws")}">${escHtml(r.name)}: ${r.survived}/${r.samples}</span>`).join("")}</div>
     <div class="sc-wrap"><table class="sc-table"><tr><th>would become</th><th>change</th><th>drawn</th>${names.map(n=>`<th>${escHtml(n)}</th>`).join("")}</tr>`;
   for(const o of w.outcomes){
